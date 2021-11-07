@@ -1,6 +1,8 @@
 BIN_DIR=bin
 SRC_DIR=src
 OBJ_DIR=obj
+TEST_DIR=test
+TEST_INPUT_DIR=test/input/
 CC=clang++
 CC_FLAG= -Wall -g -Og --std=c++17
 
@@ -13,15 +15,20 @@ EXE=test
 
 #-- MAIN BUILD TARGETS ----------------------------------------------------#
 
-all: lib exe
+all: lib exe run
+
+lib: $(OBJN)
+
+run: lib exe
+	$(info )	
+	$(info --------------------------)	
+	@ ./$(BIN_DIR)/$(EXE) $(TEST_INPUT_DIR)/test01 
 
 exe: lib
+	$(info )	
 	$(info --------------------------)	
 	$(info Compiling exe bin/test ... )	
 	@$(CC) $(CC_FLAG) $(SRC_DIR)/main.cpp $(OBJN) -o $(BIN_DIR)/$(EXE)
-	@echo DONE
-
-lib: $(OBJN)
 
 $(OBJN): $(OBJ_DIR)/%.o:$(SRC_DIR)/%.cpp 
 	@time -f "Compiled $< in %e seconds" $(CC) $(FLAGS) -MP -MMD -c $< -o $@
