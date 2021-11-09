@@ -1,6 +1,7 @@
+#include <cassert>
 #include <cstdio>
 #include <cstring>
-#include <cassert>
+#include <ctype.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -46,8 +47,10 @@ const char* token_to_str[] = {"INVALID", "ID",  "NUM", "PLUS",
                               "MINUS",   "DIV", "MULT"};
 
 struct Token {
-    TokenType type;
+    TokenType type = INVALID;
     const std::string str = "";
+    int lineno = 0;
+    int linepos = 0;
 };
 
 struct Scanner {
@@ -55,51 +58,58 @@ struct Scanner {
     Scanner(const char* buf) : _buf(buf), _sz(strlen(buf)) {}
     void scan() {
         char ch = *_buf;
-        for (size_t i = 0; i < _sz; i++) {
+        lineno = 0;
+        linepos = 0;
+        while (ch != '\0') {
             switch (ch) {
             case 'a' ... 'z':
-            case 'A' ... 'Z': {
-                printf("%3ld: found alpha  char '%c'\n", i, ch);
+            case 'A' ... 'Z':
+            case '_': {
+                // printf("%3ld: found alpha  char '%c'\n", ch);
                 // TODO: consume entire identifier
                 tok(ID, consumeId());
                 break;
             }
             case '0' ... '9': {
-                printf("%3ld: found digit  char '%c'\n", i, ch);
-                // TODO: consume entire number
+                // printf("%3ld: found digit  char '%c'\n", ch);
                 tok(NUM, consumeNum());
                 break;
             }
             case '+': {
-                printf("%3ld: found plus   char '%c'\n", i, ch);
+                // printf("%3ld: found plus   char '%c'\n", ch);
                 tok(PLUS, str(ch));
                 break;
             }
             case '-': {
-                printf("%3ld: found minus  char '%c'\n", i, ch);
+                // printf("%3ld: found minus  char '%c'\n", ch);
                 tok(MINUS, str(ch));
                 break;
             }
             case '/': {
-                printf("%3ld: found div    char '%c'\n", i, ch);
+                // printf("%3ld: found div    char '%c'\n", ch);
                 tok(DIV, str(ch));
                 break;
             }
             case '*': {
-                printf("%3ld: found mult   char '%c'\n", i, ch);
+                // printf("%3ld: found mult   char '%c'\n", ch);
                 tok(MULT, str(ch));
                 break;
             }
-            case '\n': 
-            case '\r': 
-            case '\t': 
-            case ' ': 
-            {
-                printf("%3ld: found wspace char '%c'\n", i, ch);
+            case '\n':
+            case '\r':
+            case '\t':
+            case ' ': {
+                if (ch == '\n') {
+                    lineno++;
+                    linepos = 0;
+                }
+                // printf("%3ld: found wspace char '%c'\n", i, ch);
                 break;
             }
             default: {
-                printf("%3ld: found unimpl char '%c'\n", i, ch);
+                printf("Found unimpl char '%c' (%d) at lineno %d, pos %d\n", ch,
+                       ch, lineno, linepos);
+                exit(0);
                 break;
             }
             }
@@ -107,15 +117,14 @@ struct Scanner {
         }
 
         for (auto tok : _tokens) {
-            printf("tok %s = '%s' \n", token_to_str[tok.type], tok.str.c_str());
+            printf("tok %5s = %15s at %d,%d  \n", token_to_str[tok.type], tok.str.c_str(),tok.lineno,tok.linepos);
         }
     }
     std::string consumeId() {
         std::string s;
         char ch = *_buf;
-        assert((ch >= 'A' and ch <= 'Z') or (ch >= 'a' and ch <= 'z'));
-        while (((ch >= 'A' and ch <= 'Z') or (ch >= 'a' and ch <= 'z') or
-               (ch >= '0' and ch <= '9'))) {
+        assert(isalpha(ch) or ch == '_');
+        while (isalnum(ch) or ch == '_') {
             s.push_back(ch);
             ch = advance();
         }
@@ -125,7 +134,7 @@ struct Scanner {
     std::string consumeNum() {
         std::string s;
         char ch = *_buf;
-        assert(ch >= '0' and ch <= '9');
+        assert(isdigit(ch));
         while (ch >= '0' and ch <= '9') {
             s.push_back(ch);
             ch = advance();
@@ -135,13 +144,24 @@ struct Scanner {
     }
     std::string str(char c) { return std::string(1, c); }
     void tok(TokenType type, std::string str) {
-        _tokens.push_back({.type = type, .str = std::move(str)});
+        _tokens.push_back({.type = type,
+                           .str = std::move(str),
+                           .lineno = lineno,
+                           .linepos = linepos});
     }
     char peek() { return _buf[1]; }
-    char advance() { return *(++_buf); }
-    char stepback() { return *(--_buf); }
+    char advance() {
+        linepos++;
+        return *(++_buf);
+    }
+    char stepback() {
+        linepos--;
+        return *(--_buf);
+    }
 
     std::vector<Token> _tokens;
+    int linepos = 0;
+    int lineno = 0;
     const char* _buf = nullptr;
     const size_t _sz = 0;
 };
