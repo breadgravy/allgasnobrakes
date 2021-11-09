@@ -117,7 +117,8 @@ struct Scanner {
         }
 
         for (auto tok : _tokens) {
-            printf("tok %5s = %15s at %d,%d  \n", token_to_str[tok.type], tok.str.c_str(),tok.lineno,tok.linepos);
+            printf("tok %5s = %15s at %d,%d  \n", token_to_str[tok.type],
+                   tok.str.c_str(), tok.lineno, tok.linepos);
         }
     }
     std::string consumeId() {
@@ -149,7 +150,6 @@ struct Scanner {
                            .lineno = lineno,
                            .linepos = linepos});
     }
-    char peek() { return _buf[1]; }
     char advance() {
         linepos++;
         return *(++_buf);
@@ -165,6 +165,65 @@ struct Scanner {
     const char* _buf = nullptr;
     const size_t _sz = 0;
 };
+
+#if 0
+
+    parse functions fit into these categories:
+        prefix
+        infix
+
+    infix and prefix  can exist for the same token type; this allows
+    differentiating between, for example, '(' as a grouping operator 
+    (prefix) and as a call operator (infix)  
+
+    func    (       arg1, arg2)
+     ^      ^       ^
+     LHS    infix   RHS
+
+    pratt parser core loop works like so:
+
+    parse(prior_prec){
+        tok = consume()
+        prefix_func = get_prefix_function(tok)
+
+        // fully parse expr starting at tok, recursively if needed
+        expr = prefix_func(tok)
+
+        // THE CORE TRICK
+        // ---------------
+        // if prior_prec >= next_prec that means that we should just return
+        // immediately. The enclosing context binds stronger than the next
+        // token and we should complete parsing the prior expr.
+        //
+        // if prior_prec < next_prec, the current expr *belongs* to the
+        // expression that follows
+        //
+        next_prec = get_next_precedence()
+        if (prior_prec < next_prec){
+            return expr; 
+        } 
+        else {
+            while (prior_precedence < getPredence(nexttok)){
+                // next token must have a valid infix op defined, or prec would be 0!
+                tok = consume()
+                infix_func = get_infix_function(tok)
+
+                // prev expr is subsumed within infix_func
+                // this happens repeatedly until precedence stops it
+                lhs = expr
+                expr = infix_func(tok,lhs)
+            }
+            return expr
+        }
+    }
+
+    difference between left-paren being a
+
+
+#endif
+
+
+
 
 ///////////////////////////////////////////////////////////////////////////////
 
