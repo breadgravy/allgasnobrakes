@@ -1,2 +1,11 @@
-a b identifier my_variable 234 + - / *
-any            b identifier 234 + - / * 
+fn main(){
+    a = b;
+    if c and d {
+       ret a; 
+    } 
+    elif b eq c {
+       for i : a to b {
+
+       }
+    }
+}

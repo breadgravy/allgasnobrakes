@@ -5,9 +5,12 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <vector>
 
-#include "re.hpp"
+#include <string>
+#include <vector>
+#include <functional>
+
+#include "cfg.hpp"
 
 bool file_exists(std::string& filepath) {
     return access(filepath.c_str(), F_OK) == 0;
@@ -41,32 +44,48 @@ char* getnewlinebound(char* str) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+#define DECL_TOKEN_TYPE(type) type,
+enum TokenType { 
+    #include "token_types.inc"
+};
+#undef DECL_TOKEN_TYPE
 
-enum TokenType { INVALID = 0, ID, NUM, PLUS, MINUS, DIV, MULT };
-const char* token_to_str[] = {"INVALID", "ID",  "NUM", "PLUS",
-                              "MINUS",   "DIV", "MULT"};
+#define DECL_TOKEN_TYPE(type) #type,
+const char* token_to_str[] = {
+    #include "token_types.inc"
+};
+#undef DECL_TOKEN_TYPE
 
 struct Token {
-    TokenType type = INVALID;
+    TokenType type = NUM_TOKEN_TYPES;
     const std::string str = "";
     int lineno = 0;
     int linepos = 0;
 };
 
+#define SINGLE_CHAR_TOKEN(__ch__,__token_type__) \
+    case __ch__: {\
+        tok(__token_type__, str(__ch__)); \
+        break; } 
+
 struct Scanner {
     Scanner() = delete;
     Scanner(const char* buf) : _buf(buf), _sz(strlen(buf)) {}
-    void scan() {
+    std::vector<Token> scan() {
         char ch = *_buf;
-        lineno = 0;
-        linepos = 0;
+        _lineno = 0;
+        _linepos = 0;
         while (ch != '\0') {
             switch (ch) {
-            case 'a' ... 'z':
-            case 'A' ... 'Z':
-            case '_': {
+            case 'a' ... 'z': case 'A' ... 'Z': case '_': {
                 // printf("%3ld: found alpha  char '%c'\n", ch);
-                // TODO: consume entire identifier
+                
+                // TODO: implement keyword check
+                //TokenType kw = parseKeyword(); 
+                TokenType kw = INVALID;  
+                if (kw != INVALID){
+                    tok(kw, consumeId());
+                }
                 tok(ID, consumeId());
                 break;
             }
@@ -75,40 +94,31 @@ struct Scanner {
                 tok(NUM, consumeNum());
                 break;
             }
-            case '+': {
-                // printf("%3ld: found plus   char '%c'\n", ch);
-                tok(PLUS, str(ch));
-                break;
-            }
-            case '-': {
-                // printf("%3ld: found minus  char '%c'\n", ch);
-                tok(MINUS, str(ch));
-                break;
-            }
-            case '/': {
-                // printf("%3ld: found div    char '%c'\n", ch);
-                tok(DIV, str(ch));
-                break;
-            }
-            case '*': {
-                // printf("%3ld: found mult   char '%c'\n", ch);
-                tok(MULT, str(ch));
-                break;
-            }
-            case '\n':
-            case '\r':
-            case '\t':
-            case ' ': {
+            case '\n': case '\r': case '\t': case ' ': {
                 if (ch == '\n') {
-                    lineno++;
-                    linepos = 0;
+                    _lineno++;
+                    _linepos = 0;
                 }
                 // printf("%3ld: found wspace char '%c'\n", i, ch);
                 break;
             }
+            SINGLE_CHAR_TOKEN('+',PLUS) 
+            SINGLE_CHAR_TOKEN('-',MINUS) 
+            SINGLE_CHAR_TOKEN('/',DIV) 
+            SINGLE_CHAR_TOKEN('*',MULT) 
+            SINGLE_CHAR_TOKEN('=',EQ)
+            SINGLE_CHAR_TOKEN('!',BANG)
+            SINGLE_CHAR_TOKEN(':',COLON)
+            SINGLE_CHAR_TOKEN(';',SEMICOLON)
+            SINGLE_CHAR_TOKEN('(',LEFT_PAREN)
+            SINGLE_CHAR_TOKEN(')',RIGHT_PAREN)
+            SINGLE_CHAR_TOKEN('{',LEFT_BRACE)
+            SINGLE_CHAR_TOKEN('}',RIGHT_BRACE)
+            SINGLE_CHAR_TOKEN('[',LEFT_BRACKET)
+            SINGLE_CHAR_TOKEN(']',RIGHT_BRACKET)
             default: {
                 printf("Found unimpl char '%c' (%d) at lineno %d, pos %d\n", ch,
-                       ch, lineno, linepos);
+                       ch, _lineno, _linepos);
                 exit(0);
                 break;
             }
@@ -116,10 +126,12 @@ struct Scanner {
             ch = advance();
         }
 
-        for (auto tok : _tokens) {
-            printf("tok %5s = %15s at %d,%d  \n", token_to_str[tok.type],
-                   tok.str.c_str(), tok.lineno, tok.linepos);
-        }
+        if (dump_token_stream)
+            dumpTokenStream();
+
+        std::vector<Token> tmp;
+        std::swap(tmp, _tokens);
+        return tmp;
     }
     std::string consumeId() {
         std::string s;
@@ -147,21 +159,33 @@ struct Scanner {
     void tok(TokenType type, std::string str) {
         _tokens.push_back({.type = type,
                            .str = std::move(str),
-                           .lineno = lineno,
-                           .linepos = linepos});
+                           .lineno = _lineno,
+                           .linepos = _linepos});
     }
     char advance() {
-        linepos++;
+        _linepos++;
         return *(++_buf);
     }
     char stepback() {
-        linepos--;
+        _linepos--;
         return *(--_buf);
     }
 
+    void dumpTokenStream() {
+        int curr_lineno=-1;
+        for (auto tok : _tokens) {
+            if (tok.lineno > curr_lineno){
+                curr_lineno = tok.lineno;
+                printf("LINE %d: \n", curr_lineno);
+            }
+            printf("\t%-5s = %-10s at %d,%d  \n", token_to_str[tok.type],
+                   tok.str.c_str(), tok.lineno, tok.linepos);
+        }
+    }
+
     std::vector<Token> _tokens;
-    int linepos = 0;
-    int lineno = 0;
+    int _linepos = 0;
+    int _lineno = 0;
     const char* _buf = nullptr;
     const size_t _sz = 0;
 };
@@ -217,13 +241,27 @@ struct Scanner {
         }
     }
 
-    difference between left-paren being a
-
-
 #endif
 
+struct Expr {};
+Expr boom(){ assert(1); return {}; }
 
+// indexed by token type
+typedef std::vector<std::function<Expr()>> ExprFuncTable;
 
+struct Parser {
+    Parser() = delete; 
+    Parser(const std::vector<Token> tokens) : _tokens(std::move(tokens)){
+        initFuncTable(_prefix_func_table);
+        _prefix_func_table[ID] = &boom;
+    }
+    void initFuncTable(ExprFuncTable& functable){
+        functable.resize(NUM_TOKEN_TYPES);
+        std::fill(functable.begin(),functable.end(),&boom);
+    }
+    ExprFuncTable _prefix_func_table;
+    std::vector<Token> _tokens;
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -272,7 +310,9 @@ void run_file(char* filepath, bool dump_source) {
 
     // get tokens from file
     Scanner scanner(filebuf);
-    scanner.scan();
+    auto tokens = scanner.scan();
+
+    Parser parser(tokens);
 }
 
 void run_prompt() { printf("prompt goes here\n"); }
