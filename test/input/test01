@@ -5,7 +5,7 @@ fn main(){
     } 
     elif b eq c {
        for i : a to b {
-
+            i = 10;
        }
     }
 }
