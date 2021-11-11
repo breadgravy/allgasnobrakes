@@ -3,7 +3,7 @@ fn main(){
     if c and d {
        ret a; 
     } 
-    elif b eq c {
+    elif b cmp c {
        for i : a to b {
             i = 10;
        }

@@ -116,7 +116,7 @@ struct Scanner {
                 SINGLE_CHAR_TOKEN('-', MINUS)
                 SINGLE_CHAR_TOKEN('/', DIV)
                 SINGLE_CHAR_TOKEN('*', MULT)
-                SINGLE_CHAR_TOKEN('=', EQ)
+                SINGLE_CHAR_TOKEN('=', EQUALS)
                 SINGLE_CHAR_TOKEN('!', BANG)
                 SINGLE_CHAR_TOKEN(':', COLON)
                 SINGLE_CHAR_TOKEN(';', SEMICOLON)
@@ -146,15 +146,16 @@ struct Scanner {
     TokenType getKeywordTokenType(const std::string& idstr) {
         if (false) {
         }
+        KW_MATCH(AND, and)
+        KW_MATCH(ELIF, elif)
+        KW_MATCH(ELSE, else)
+        KW_MATCH(CMP, cmp)
+        KW_MATCH(FN, fn)
         KW_MATCH(FOR,for)
         KW_MATCH(IF, if)
-        KW_MATCH(ELSE, else)
-        KW_MATCH(ELIF, elif)
-        KW_MATCH(TO, to)
-        KW_MATCH(FN, fn)
-        KW_MATCH(AND, and)
         KW_MATCH(OR, or)
         KW_MATCH(RET, ret)
+        KW_MATCH(TO, to)
         else {
             return ID;
         }
@@ -270,20 +271,41 @@ struct Scanner {
 
 #endif
 
+// fwd decl
+struct Parser;
+
 struct Expr {};
-Expr boom() {
-    assert(0);
+struct NameExpr : Expr { 
+    NameExpr(std::string name): name(std::move(name)) {}
+    std::string name; 
+};
+struct NumExpr : Expr { 
+    NumExpr(double num): num(num) {}
+    double num; 
+};
+
+Expr boom(const Token& curr_tok, const Parser& parser) {
+    assert(0 && "this slot in function table is unimplemented");
     return {};
 }
 
+// literal expressions!
+NameExpr parseID(const Token& curr_tok, const Parser& parser) {
+    return NameExpr(curr_tok.str);
+}
+NumExpr parseNum(const Token& curr_tok, const Parser& parser) {
+    return NumExpr(atof(curr_tok.str.c_str()));
+}
+
 // indexed by token type
-typedef std::vector<std::function<Expr()>> ExprFuncTable;
+typedef std::vector<std::function<Expr(const Token&,const Parser&)>> ExprFuncTable;
 
 struct Parser {
     Parser() = delete;
     Parser(const std::vector<Token> tokens) : _tokens(std::move(tokens)) {
         initFuncTable(_prefix_func_table);
         _prefix_func_table[ID] = &boom;
+
     }
     void initFuncTable(ExprFuncTable& functable) {
         functable.resize(NUM_TOKEN_TYPES);
