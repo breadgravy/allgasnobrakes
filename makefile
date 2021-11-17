@@ -22,7 +22,7 @@ lib: $(OBJN)
 run: lib exe
 	$(info )	
 	$(info --------------------------)	
-	@ ./$(BIN_DIR)/$(EXE) $(TEST_INPUT_DIR)/test01 
+	@ ./$(BIN_DIR)/$(EXE) $(TEST_INPUT_DIR)/test02 
 
 exe: lib
 	$(info )	

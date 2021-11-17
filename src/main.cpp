@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -42,6 +43,15 @@ char* getnewlinebound(char* str) {
         // printf("found end of string\n");
         return nullptr;
     }
+}
+
+void printDiv(const char* str) {
+    static int phaseno = 1;
+    printf("\n-----------------------------------------------------------------"
+           "---------------\n");
+    printf(" Phase %d : %s\n", phaseno++, str);
+    printf("-------------------------------------------------------------------"
+           "-------------\n");
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -274,45 +284,167 @@ struct Scanner {
 // fwd decl
 struct Parser;
 
-struct Expr {};
-struct NameExpr : Expr { 
-    NameExpr(std::string name): name(std::move(name)) {}
-    std::string name; 
+struct Expr {
+    virtual void print() {}
+    virtual ~Expr();
 };
-struct NumExpr : Expr { 
-    NumExpr(double num): num(num) {}
-    double num; 
-};
-
-Expr boom(const Token& curr_tok, const Parser& parser) {
-    assert(0 && "this slot in function table is unimplemented");
-    return {};
-}
+Expr::~Expr() {}
 
 // literal expressions!
-NameExpr parseID(const Token& curr_tok, const Parser& parser) {
-    return NameExpr(curr_tok.str);
-}
-NumExpr parseNum(const Token& curr_tok, const Parser& parser) {
-    return NumExpr(atof(curr_tok.str.c_str()));
-}
+struct NameExpr : Expr {
+    NameExpr(std::string name) : name(std::move(name)) {}
+    std::string name;
+    void print() { printf("Name[\"%s\"]", name.c_str()); }
+};
+struct NumExpr : Expr {
+    NumExpr(double num) : num(num) {}
+    double num;
+    void print() { printf("Num[%g]", num); }
+};
+struct BinaryOpExpr : Expr {
+    BinaryOpExpr() = delete;
+    BinaryOpExpr(Expr* left, TokenType type, Expr* right)
+        : left(left), type(type), right(right) {}
+    Expr* left;
+    TokenType type;
+    Expr* right;
+    void print() {
+        printf("(");
+        left->print();
+        printf(" OP[%s] ", token_to_str[type]);
+        right->print();
+        printf(")");
+    }
+};
+
+struct CallExpr : Expr {
+    CallExpr() = delete;
+    CallExpr(Expr* fn_name, std::vector<Expr*> args)
+        : fn_name(fn_name), args(args) {}
+    Expr* fn_name;
+    std::vector<Expr*> args;
+    void print() {
+        printf("(");
+        fn_name->print();
+        printf(" CALL ");
+        for (auto arg : args) {
+            arg->print();
+        }
+        printf(")");
+    }
+};
 
 // indexed by token type
-typedef std::vector<std::function<Expr(const Token&,const Parser&)>> ExprFuncTable;
+typedef int Prec;
+typedef std::vector<Token>::const_iterator TokIter;
+typedef std::function<Expr*(Parser&)> PrefixFn;
+typedef std::vector<std::pair<PrefixFn, Prec>> PrefixTable;
+typedef std::function<Expr*(Parser&, Expr* left)> InfixFn;
+typedef std::vector<std::pair<InfixFn, Prec>> InfixTable;
 
 struct Parser {
     Parser() = delete;
     Parser(const std::vector<Token> tokens) : _tokens(std::move(tokens)) {
-        initFuncTable(_prefix_func_table);
-        _prefix_func_table[ID] = &boom;
+        _curr_token = _tokens.begin();
 
+        initPrefixTable(_prefix_func_table);
+        _prefix_func_table[ID] = std::make_pair(&Parser::parseID, 0);
+        _prefix_func_table[NUM] = std::make_pair(&Parser::parseNum, 0);
+
+        initInfixTable(_infix_func_table);
+        _infix_func_table[PLUS] = std::make_pair(&Parser::parseBinaryOp, 1);
+        _infix_func_table[MINUS] = std::make_pair(&Parser::parseBinaryOp, 2);
+        _infix_func_table[MULT] = std::make_pair(&Parser::parseBinaryOp, 3);
+        _infix_func_table[LEFT_PAREN] = std::make_pair(&Parser::parseCall, 10);
     }
-    void initFuncTable(ExprFuncTable& functable) {
+
+    Expr* ParseExpr(int precedence) {
+        auto c = _curr_token->type;
+        Expr* expr = getPrefixFunc(c)(*this);
+
+        while (precedence < getPrecedence()) {
+            expr = getInfixFunc(_curr_token->type)(*this, expr);
+        }
+
+        return expr;
+    }
+
+    // avoid implementing precedence for now
+    Prec getPrecedence() {
+        if (_curr_token == _tokens.end()) {
+            return -9999999;
+        } else {
+            return getInfixPrec(_curr_token->type);
+        }
+    }
+
+    void initPrefixTable(PrefixTable& functable) {
         functable.resize(NUM_TOKEN_TYPES);
-        std::fill(functable.begin(), functable.end(), &boom);
+        std::fill(functable.begin(), functable.end(),
+                  std::make_pair(&prefixboom, 0));
     }
-    ExprFuncTable _prefix_func_table;
+    void initInfixTable(InfixTable& functable) {
+        functable.resize(NUM_TOKEN_TYPES);
+        std::fill(functable.begin(), functable.end(),
+                  std::make_pair(&infixboom, 0));
+    }
+
+    PrefixFn getPrefixFunc(TokenType toktype) {
+        assert(toktype < _prefix_func_table.size());
+        return _prefix_func_table[toktype].first;
+    }
+    InfixFn getInfixFunc(TokenType toktype) {
+        assert(toktype < _infix_func_table.size());
+        return _infix_func_table[toktype].first;
+    }
+    Prec getPrefixPrec(TokenType toktype) {
+        assert(toktype < _prefix_func_table.size());
+        return _prefix_func_table[toktype].second;
+    }
+    Prec getInfixPrec(TokenType toktype) {
+        assert(toktype < _infix_func_table.size());
+        return _infix_func_table[toktype].second;
+    }
+
+    // return curr token and advance
+    const Token& consume() { return *(_curr_token++); };
+    PrefixTable _prefix_func_table;
+    InfixTable _infix_func_table;
     std::vector<Token> _tokens;
+    TokIter _curr_token;
+
+    // prefix functions
+    // NOTE: parsing functions must consume what they use!
+    static NameExpr* parseID(Parser& parser) {
+        return new NameExpr((parser.consume()).str);
+    }
+    static NumExpr* parseNum(Parser& parser) {
+        return new NumExpr(atof(parser.consume().str.c_str()));
+    }
+
+    // infix functions
+    // NOTE: parsing functions must consume what they use!
+    static BinaryOpExpr* parseBinaryOp(Parser& parser, Expr* left) {
+        TokenType type = parser.consume().type;
+        // get right hand side
+        auto right = parser.ParseExpr(parser.getInfixPrec(type));
+        return new BinaryOpExpr(left, type, right);
+    }
+    static CallExpr* parseCall(Parser& parser, Expr* fn_name) {
+        parser.consume(); // consume paren
+        // XXX: should make this a CommaListExpr or something ... 
+        auto args = parser.ParseExpr(parser.getInfixPrec(LEFT_PAREN));
+        return new CallExpr(fn_name,{args});
+    }
+
+    static Expr* prefixboom(Parser&) {
+        assert(0 && "this slot in function table is unimplemented");
+        return new Expr();
+    }
+    static Expr* infixboom(Parser&, Expr*) {
+        assert(0 && "this slot in function table is unimplemented");
+        return new Expr();
+    }
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -361,10 +493,15 @@ void run_file(char* filepath, bool dump_source) {
     }
 
     // get tokens from file
+    printDiv("Scanner");
     Scanner scanner(filebuf);
     auto tokens = scanner.scan();
 
+    printDiv("Parser");
     Parser parser(tokens);
+    parser.ParseExpr(0)->print();
+
+    printDiv("cleanup");
 }
 
 void run_prompt() { printf("prompt goes here\n"); }
