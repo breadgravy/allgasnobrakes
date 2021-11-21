@@ -11,4 +11,6 @@ BinPackArguments: false
 BinPackParameters: false
 
 ContinuationIndentWidth: 120
-ColumnLimit: 150
+ColumnLimit: 120
+
+AllowAllArgumentsOnNextLine: true

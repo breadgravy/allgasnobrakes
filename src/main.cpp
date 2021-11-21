@@ -83,15 +83,15 @@ struct Token {
     int linepos           = 0;
 };
 
-#define SINGLE_CHAR_TOKEN(__ch__, __token_type__)                                                                                                    \
-    case __ch__: {                                                                                                                                   \
-        tok(__token_type__, str(__ch__));                                                                                                            \
-        break;                                                                                                                                       \
+#define SINGLE_CHAR_TOKEN(__ch__, __token_type__)                                                                      \
+    case __ch__: {                                                                                                     \
+        tok(__token_type__, str(__ch__));                                                                              \
+        break;                                                                                                         \
     }
 
-#define KW_MATCH(__token_type__, __token_str__)                                                                                                      \
-    else if (re_match(idstr, "^" #__token_str__ "$")) {                                                                                              \
-        return __token_type__;                                                                                                                       \
+#define KW_MATCH(__token_type__, __token_str__)                                                                        \
+    else if (re_match(idstr, "^" #__token_str__ "$")) {                                                                \
+        return __token_type__;                                                                                         \
     }
 
 struct Scanner {
@@ -211,7 +211,9 @@ struct Scanner {
         return s;
     }
     std::string str(char c) { return std::string(1, c); }
-    void tok(TokenType type, std::string str) { _tokens.push_back({.type = type, .str = std::move(str), .lineno = _lineno, .linepos = _linepos}); }
+    void tok(TokenType type, std::string str) {
+        _tokens.push_back({.type = type, .str = std::move(str), .lineno = _lineno, .linepos = _linepos});
+    }
     char advance() {
         _linepos++;
         return *(++_srcbuf);
@@ -297,7 +299,7 @@ struct Scanner {
 struct Parser;
 
 struct Expr {
-    virtual void print() {}
+    virtual void print(int depth = 0) {}
     virtual ~Expr();
 };
 Expr::~Expr() {}
@@ -305,27 +307,42 @@ Expr::~Expr() {}
 /////////////////////////////////////////////////////////////////////////
 // Expression Types
 /////////////////////////////////////////////////////////////////////////
+void printTabs(int depth) {
+    for (int i = 0; i < depth; i++)
+        printf("  ");
+}
 struct EmptyExpr : Expr {
-    void print() { printf("(EMPTY)"); }
+    void print(int depth) {
+        printTabs(depth);
+        printf("(EMPTY)\n");
+    }
 };
 struct NameExpr : Expr {
     NameExpr(std::string name) : name(std::move(name)) {}
     std::string name;
-    void print() { printf("Name[\"%s\"]", name.c_str()); }
+    void print(int depth) {
+        printTabs(depth);
+        printf("Name[\"%s\"]\n", name.c_str());
+    }
 };
 struct NumExpr : Expr {
     NumExpr(double num) : num(num) {}
     double num;
-    void print() { printf("Num[%g]", num); }
+    void print(int depth) {
+        printTabs(depth);
+        printf("Num[%g]\n", num);
+    }
 };
 struct UnaryOpExpr : Expr {
-    UnaryOpExpr(TokenType type, Expr* right) : right(right) {}
+    UnaryOpExpr(TokenType type, Expr* right) : type(type), right(right) {}
     TokenType type;
     Expr* right;
-    void print() {
-        printf("(UnaryOp[%s] ", token_to_str[type]);
-        right->print();
-        printf(")");
+    void print(int depth) {
+        printTabs(depth);
+        printf("(UnaryOp[%s] \n", token_to_str[type]);
+        right->print(depth + 1);
+        printTabs(depth);
+        printf(")\n");
     }
 };
 struct BinaryOpExpr : Expr {
@@ -334,12 +351,13 @@ struct BinaryOpExpr : Expr {
     Expr* left;
     TokenType type;
     Expr* right;
-    void print() {
-        printf("(BinaryOp[%s] ", token_to_str[type]);
-        left->print();
-        printf(" ");
-        right->print();
-        printf(")");
+    void print(int depth) {
+        printTabs(depth);
+        printf("(BinaryOp[%s] \n", token_to_str[type]);
+        left->print(depth + 1);
+        right->print(depth + 1);
+        printTabs(depth);
+        printf(")\n");
     }
 };
 
@@ -348,12 +366,13 @@ struct CallExpr : Expr {
     CallExpr(Expr* fn_name, Expr* args) : fn_name(fn_name), args(args) {}
     Expr* fn_name;
     Expr* args;
-    void print() {
-        printf("(Function[");
-        fn_name->print();
-        printf("] ");
-        args->print();
-        printf(")");
+    void print(int depth) {
+        printTabs(depth);
+        printf("(Function \n");
+        fn_name->print(depth + 1);
+        args->print(depth + 1);
+        printTabs(depth);
+        printf(")\n");
     }
 };
 
@@ -361,10 +380,12 @@ struct ReturnExpr : Expr {
     ReturnExpr() = delete;
     ReturnExpr(Expr* value) : value(value) {}
     Expr* value;
-    void print() {
-        printf("(Return ");
-        value->print();
-        printf(")");
+    void print(int depth) {
+        printTabs(depth);
+        printf("(Return\n");
+        value->print(depth + 1);
+        printTabs(depth);
+        printf(")\n");
     }
 };
 
@@ -373,12 +394,13 @@ struct SubscriptExpr : Expr {
     SubscriptExpr(Expr* array_name, Expr* index) : array_name(array_name), index(index) {}
     Expr* array_name;
     Expr* index;
-    void print() {
-        printf("(ArrIndex[");
-        array_name->print();
-        printf("] ");
-        index->print();
-        printf(")");
+    void print(int depth) {
+        printTabs(depth);
+        printf("(ArrIndex\n");
+        array_name->print(depth + 1);
+        index->print(depth + 1);
+        printTabs(depth);
+        printf(")\n");
     }
 };
 
@@ -386,34 +408,36 @@ struct CommaListExpr : Expr {
     CommaListExpr() = delete;
     CommaListExpr(std::vector<Expr*> exprs) : exprs(exprs) {}
     std::vector<Expr*> exprs;
-    void print() {
-        printf("(CommaList ");
+    void print(int depth) {
+        printTabs(depth);
+        printf("(CommaList \n");
         for (auto expr : exprs) {
-            expr->print();
-            printf(" ");
+            expr->print(depth + 1);
         }
-        printf(")");
+        printTabs(depth);
+        printf(")\n");
     }
 };
 
 struct BlockExpr : Expr {
-    void print() {}
+    void print(int depth) {}
 };
 
 struct ForExpr : Expr {
     ForExpr() = delete;
-    ForExpr(Expr* loop_var, Expr* update_expr, Expr* loop_body) : loop_var(loop_var), update_expr(update_expr), loop_body(loop_body) {}
+    ForExpr(Expr* loop_var, Expr* update_expr, Expr* loop_body)
+        : loop_var(loop_var), update_expr(update_expr), loop_body(loop_body) {}
     Expr* loop_var;
     Expr* update_expr;
     Expr* loop_body;
-    void print() {
-        printf("(For ");
-        loop_var->print();
-        printf(" ");
-        update_expr->print();
-        printf(" ");
-        loop_body->print();
-        printf(")");
+    void print(int depth) {
+        printTabs(depth);
+        printf("(For \n");
+        loop_var->print(depth + 1);
+        update_expr->print(depth + 1);
+        loop_body->print(depth + 1);
+        printTabs(depth);
+        printf(")\n");
     }
 };
 
@@ -456,11 +480,11 @@ struct Parser {
         _infix_func_table[LEFT_PAREN]   = std::make_pair(&Parser::parseCall, 100);
         _infix_func_table[LEFT_BRACKET] = std::make_pair(&Parser::parseSubscript, 100);
         // assume that finding these tokens in infix context implies an expression boundary
-        _infix_func_table[ID]  = std::make_pair(&Parser::infixboom, -77);
-        _infix_func_table[NUM] = std::make_pair(&Parser::infixboom, -77);
-        _infix_func_table[FOR] = std::make_pair(&Parser::infixboom, -77);
-        _infix_func_table[IF]  = std::make_pair(&Parser::infixboom, -77);
-        _infix_func_table[RET] = std::make_pair(&Parser::infixboom, -77);
+        _infix_func_table[ID]        = std::make_pair(&Parser::infixboom, -77);
+        _infix_func_table[NUM]       = std::make_pair(&Parser::infixboom, -77);
+        _infix_func_table[FOR]       = std::make_pair(&Parser::infixboom, -77);
+        _infix_func_table[IF]        = std::make_pair(&Parser::infixboom, -77);
+        _infix_func_table[RET]       = std::make_pair(&Parser::infixboom, -77);
         _infix_func_table[SEMICOLON] = std::make_pair(&Parser::infixboom, -77);
         // if seen, should always stop parsing at RIGHT_PAREN, RIGHT_BRACKET
         _infix_func_table[RIGHT_PAREN]   = std::make_pair(&Parser::infixboom, -777);
@@ -475,34 +499,34 @@ struct Parser {
         if (endoftokens())
             return new EmptyExpr;
         auto c = tokit->type;
-        //printf("calling prefix fn for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
+        // printf("calling prefix fn for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
         Expr* expr = getPrefixFunc(c)(*this);
 
         while (precedence < getPrecedence()) {
-            //printf("calling infix fn for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
+            // printf("calling infix fn for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
             expr = getInfixFunc(tokit->type)(*this, expr);
         }
-        //printf("ending parse for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
+        // printf("ending parse for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
 
         return expr;
     }
 
-    std::vector<Expr*> Parse(){
+    std::vector<Expr*> Parse() {
         std::vector<Expr*> statements;
-        // use these to check for forward progress 
+        // use these to check for forward progress
         while (not endoftokens()) {
             auto expr = ParseExpr();
             statements.push_back(expr);
 
             auto semicolon = consume();
-            //if (semicolon.type != SEMICOLON){
+            // if (semicolon.type != SEMICOLON){
             //    printf("expected semicolon on line %d, pos %d\n",semicolon.lineno,semicolon.linepos);
             //}
 
             expr->print();
             printf("\n");
-            if (not endoftokens()){
-                //printf("\tNext token to start parsing is : %s\n",token_to_str[tokit->type]);
+            if (not endoftokens()) {
+                // printf("\tNext token to start parsing is : %s\n",token_to_str[tokit->type]);
             }
         }
         return statements;
