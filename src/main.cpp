@@ -414,6 +414,7 @@ struct Parser {
         _prefix_func_table[ID] = std::make_pair(&Parser::parseID, 5);
         _prefix_func_table[NUM] = std::make_pair(&Parser::parseNum, 5);
         _prefix_func_table[BANG] = std::make_pair(&Parser::parseUnaryOp, 30);
+        _prefix_func_table[LEFT_PAREN] = std::make_pair(&Parser::parseGrouping, 0);
 
         initInfixTable(_infix_func_table);
         _infix_func_table[EQUALS] = std::make_pair(&Parser::parseBinaryOp, 10);
@@ -509,6 +510,13 @@ struct Parser {
         TokenType type = parser.consume().type;
         auto right = parser.ParseExpr(parser.getPrefixPrec(type));
         return new UnaryOpExpr(type, right);
+    }
+    static Expr* parseGrouping(Parser& parser) {
+        parser.consume(); // consume left paren
+        auto expr = parser.ParseExpr(parser.getPrefixPrec(LEFT_PAREN));
+        TokenType right_paren = parser.consume().type; // consume right paren
+        assert(right_paren && "expected paren when parsing call expr");
+        return expr;
     }
 
     // infix functions
