@@ -1,0 +1,14 @@
+#!/usr/bin/python
+
+# for
+for ID : EXPR BLOCK
+
+# if 
+case 1. if EXPR BLOCK
+case 1. if EXPR BLOCK elif EXPR BLOCK
+case 2. if EXPR BLOCK elif EXPR BLOCK else BLOCK
+case 3. if EXPR BLOCK else BLOCK
+
+# ret
+ret 
+ret EXPR

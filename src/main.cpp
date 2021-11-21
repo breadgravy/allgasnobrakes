@@ -400,6 +400,23 @@ struct BlockExpr : Expr {
     void print() {}
 };
 
+struct ForExpr : Expr {
+    ForExpr() = delete;
+    ForExpr(Expr* loop_var, Expr* update_expr, Expr* loop_body) : loop_var(loop_var), update_expr(update_expr), loop_body(loop_body) {}
+    Expr* loop_var;
+    Expr* update_expr;
+    Expr* loop_body;
+    void print() {
+        printf("(For ");
+        loop_var->print();
+        printf(" ");
+        update_expr->print();
+        printf(" ");
+        loop_body->print();
+        printf(")");
+    }
+};
+
 // indexed by token type
 typedef int Prec;
 typedef std::vector<Token>::const_iterator TokIter;
@@ -414,13 +431,14 @@ struct Parser {
         tokit = _tokens.begin();
 
         initPrefixTable(_prefix_func_table);
+        // XXX not sure if parseBlock should be prefix or infix ...
+        _prefix_func_table[LEFT_BRACE] = std::make_pair(&Parser::parseBlock, 0);
         _prefix_func_table[LEFT_PAREN] = std::make_pair(&Parser::parseGrouping, 0);
         _prefix_func_table[RET]        = std::make_pair(&Parser::parseReturn, 0);
         _prefix_func_table[ID]         = std::make_pair(&Parser::parseID, 5);
         _prefix_func_table[NUM]        = std::make_pair(&Parser::parseNum, 5);
         _prefix_func_table[BANG]       = std::make_pair(&Parser::parseUnaryOp, 30);
-        // XXX not sure if parseBlock should be prefix or infix ...
-        _prefix_func_table[LEFT_BRACE] = std::make_pair(&Parser::parseBlock, 0);
+        _prefix_func_table[FOR]        = std::make_pair(&Parser::parseFor, 100);
 
         initInfixTable(_infix_func_table);
         _infix_func_table[EQUALS]       = std::make_pair(&Parser::parseBinaryOp, 10);
@@ -437,10 +455,19 @@ struct Parser {
         _infix_func_table[BANG]         = std::make_pair(&Parser::parseBinaryOp, 80);
         _infix_func_table[LEFT_PAREN]   = std::make_pair(&Parser::parseCall, 100);
         _infix_func_table[LEFT_BRACKET] = std::make_pair(&Parser::parseSubscript, 100);
+        // assume that finding these tokens in infix context implies an expression boundary
+        _infix_func_table[ID]  = std::make_pair(&Parser::infixboom, -77);
+        _infix_func_table[NUM] = std::make_pair(&Parser::infixboom, -77);
+        _infix_func_table[FOR] = std::make_pair(&Parser::infixboom, -77);
+        _infix_func_table[IF]  = std::make_pair(&Parser::infixboom, -77);
+        _infix_func_table[RET] = std::make_pair(&Parser::infixboom, -77);
+        _infix_func_table[SEMICOLON] = std::make_pair(&Parser::infixboom, -77);
         // if seen, should always stop parsing at RIGHT_PAREN, RIGHT_BRACKET
         _infix_func_table[RIGHT_PAREN]   = std::make_pair(&Parser::infixboom, -777);
         _infix_func_table[RIGHT_BRACKET] = std::make_pair(&Parser::infixboom, -777);
-        _infix_func_table[RIGHT_BRACE]   = std::make_pair(&Parser::infixboom, -777);
+        // BRACE should not ever be parsed as infix
+        _infix_func_table[LEFT_BRACE]  = std::make_pair(&Parser::infixboom, -777);
+        _infix_func_table[RIGHT_BRACE] = std::make_pair(&Parser::infixboom, -777);
     }
 
     // core Pratt parsing routine
@@ -448,16 +475,37 @@ struct Parser {
         if (endoftokens())
             return new EmptyExpr;
         auto c = tokit->type;
-        printf("calling prefix fn for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
+        //printf("calling prefix fn for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
         Expr* expr = getPrefixFunc(c)(*this);
 
         while (precedence < getPrecedence()) {
-            printf("calling infix fn for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
+            //printf("calling infix fn for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
             expr = getInfixFunc(tokit->type)(*this, expr);
         }
-        printf("ending parse for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
+        //printf("ending parse for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
 
         return expr;
+    }
+
+    std::vector<Expr*> Parse(){
+        std::vector<Expr*> statements;
+        // use these to check for forward progress 
+        while (not endoftokens()) {
+            auto expr = ParseExpr();
+            statements.push_back(expr);
+
+            auto semicolon = consume();
+            //if (semicolon.type != SEMICOLON){
+            //    printf("expected semicolon on line %d, pos %d\n",semicolon.lineno,semicolon.linepos);
+            //}
+
+            expr->print();
+            printf("\n");
+            if (not endoftokens()){
+                //printf("\tNext token to start parsing is : %s\n",token_to_str[tokit->type]);
+            }
+        }
+        return statements;
     }
 
     // prefix functions
@@ -477,8 +525,8 @@ struct Parser {
         return expr;
     }
     static ReturnExpr* parseReturn(Parser& parser) {
-        parser.consume(); 
-        auto expr             = parser.ParseExpr(parser.getPrefixPrec(RET));
+        parser.consume();
+        auto expr = parser.ParseExpr(parser.getPrefixPrec(RET));
         return new ReturnExpr(expr);
     }
     // TODO implement this!
@@ -488,6 +536,20 @@ struct Parser {
         TokenType right_brace = parser.consume().type; // consume bracket
         assert(right_brace == RIGHT_BRACE && "expected closing right-brace when parsing subscript expr");
         return new BlockExpr();
+    }
+    static ForExpr* parseFor(Parser& parser) {
+        parser.consume();
+        // parse id
+        assert(parser.currtype() == ID);
+        auto loop_var = new NameExpr(parser.consume().str);
+        // parse colon
+        assert(parser.currtype() == COLON);
+        parser.consume();
+
+        auto update_expr = parser.ParseExpr(0);
+        auto loop_body   = parser.ParseExpr(0);
+
+        return new ForExpr(loop_var, update_expr, loop_body);
     }
 
     // infix functions
@@ -660,7 +722,7 @@ void run_file(char* filepath, bool dump_source) {
 
     printDiv("Parser");
     Parser parser(tokens);
-    parser.ParseExpr()->print();
+    auto statements = parser.Parse();
 
     printDiv("cleanup");
 }
