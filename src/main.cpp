@@ -45,6 +45,8 @@ char* getnewlinebound(char* str) {
     }
 }
 
+///////////////////////////////////////////////////////////////////////////////
+
 void printDiv(const char* str) {
     static int phaseno = 1;
     printf("\n-----------------------------------------------------------------"
@@ -53,6 +55,15 @@ void printDiv(const char* str) {
     printf("-------------------------------------------------------------------"
            "-------------\n");
 }
+
+#define   RED      "\u001b[31m"
+#define   GREEN    "\u001b[32m"
+#define   YELLOW   "\u001b[33m"
+#define   BLUE     "\u001b[34m"
+#define   MAGENTA  "\u001b[35m"
+#define   CYAN     "\u001b[36m"
+#define   WHITE    "\u001b[37m"
+#define   RESET    "\u001b[0m"
 
 ///////////////////////////////////////////////////////////////////////////////
 #define DECL_TOKEN_TYPE(type) type,
@@ -94,6 +105,14 @@ struct Scanner {
         _linepos = 0;
         while (ch != '\0') {
             switch (ch) {
+            case '#': { 
+                printf("Commented " CYAN);
+                for (; ch != '\n' and ch != '\0'; ch = advance()){
+                    printf("%c",ch);
+                }
+                printf(RESET " on LINE %d.\n",_lineno);
+                break;
+            }
             case 'a' ... 'z':
             case 'A' ... 'Z':
             case '_': {
@@ -128,6 +147,7 @@ struct Scanner {
                 SINGLE_CHAR_TOKEN('*', MULT)
                 SINGLE_CHAR_TOKEN('=', EQUALS)
                 SINGLE_CHAR_TOKEN('!', BANG)
+                SINGLE_CHAR_TOKEN(',', COMMA)
                 SINGLE_CHAR_TOKEN(':', COLON)
                 SINGLE_CHAR_TOKEN(';', SEMICOLON)
                 SINGLE_CHAR_TOKEN('(', LEFT_PAREN)
@@ -291,8 +311,11 @@ struct Expr {
 Expr::~Expr() {}
 
 /////////////////////////////////////////////////////////////////////////
-// Expression Types 
+// Expression Types
 /////////////////////////////////////////////////////////////////////////
+struct EmptyExpr : Expr {
+    void print() { printf("(EMPTY)");}
+};
 struct NameExpr : Expr {
     NameExpr(std::string name) : name(std::move(name)) {}
     std::string name;
@@ -307,7 +330,7 @@ struct UnaryOpExpr : Expr {
     UnaryOpExpr(TokenType type, Expr* right) : right(right) {}
     TokenType type;
     Expr* right;
-    void print() { 
+    void print() {
         printf("(UnaryOp[%s] ", token_to_str[type]);
         right->print();
         printf(")");
@@ -323,6 +346,7 @@ struct BinaryOpExpr : Expr {
     void print() {
         printf("(BinaryOp[%s] ", token_to_str[type]);
         left->print();
+        printf(" ");
         right->print();
         printf(")");
     }
@@ -330,16 +354,44 @@ struct BinaryOpExpr : Expr {
 
 struct CallExpr : Expr {
     CallExpr() = delete;
-    CallExpr(Expr* fn_name, std::vector<Expr*> args)
+    CallExpr(Expr* fn_name, Expr* args)
         : fn_name(fn_name), args(args) {}
     Expr* fn_name;
-    std::vector<Expr*> args;
+    Expr* args;
     void print() {
         printf("(Function[");
         fn_name->print();
         printf("] ");
-        for (auto arg : args) {
-            arg->print();
+        args->print();
+        printf(")");
+    }
+};
+
+struct SubscriptExpr : Expr {
+    SubscriptExpr() = delete;
+    SubscriptExpr(Expr* array_name, Expr* index)
+        : array_name(array_name), index(index) {}
+    Expr* array_name;
+    Expr* index;
+    void print() {
+        printf("(ArrIndex[");
+        array_name->print();
+        printf("] ");
+        index->print();
+        printf(")");
+    }
+};
+
+struct CommaListExpr : Expr {
+    CommaListExpr() = delete;
+    CommaListExpr(std::vector<Expr*> exprs)
+        : exprs(exprs) {}
+    std::vector<Expr*> exprs;
+    void print() {
+        printf("(CommaList ");
+        for (auto expr : exprs) {
+            expr->print();
+            printf(" ");
         }
         printf(")");
     }
@@ -356,53 +408,59 @@ typedef std::vector<std::pair<InfixFn, Prec>> InfixTable;
 struct Parser {
     Parser() = delete;
     Parser(const std::vector<Token> tokens) : _tokens(std::move(tokens)) {
-        _curr_token = _tokens.begin();
+        tokit = _tokens.begin();
 
         initPrefixTable(_prefix_func_table);
-        _prefix_func_table[ID] = std::make_pair(&Parser::parseID, 1);
-        _prefix_func_table[NUM] = std::make_pair(&Parser::parseNum, 1);
-        _prefix_func_table[BANG] = std::make_pair(&Parser::parseUnaryOp, 3);
+        _prefix_func_table[ID] = std::make_pair(&Parser::parseID, 5);
+        _prefix_func_table[NUM] = std::make_pair(&Parser::parseNum, 5);
+        _prefix_func_table[BANG] = std::make_pair(&Parser::parseUnaryOp, 30);
 
         initInfixTable(_infix_func_table);
-        _infix_func_table[EQUALS] = std::make_pair(&Parser::parseBinaryOp, 1);
-        _infix_func_table[PLUS] = std::make_pair(&Parser::parseBinaryOp, 2);
-        _infix_func_table[MINUS] = std::make_pair(&Parser::parseBinaryOp, 2);
-        _infix_func_table[DIV] = std::make_pair(&Parser::parseBinaryOp, 3);
-        _infix_func_table[MULT] = std::make_pair(&Parser::parseBinaryOp, 3);
-        _infix_func_table[BANG] = std::make_pair(&Parser::parseBinaryOp, 8);
-        _infix_func_table[LEFT_PAREN] = std::make_pair(&Parser::parseCall, 10);
-        // if seen, should always stop at RIGHT_PAREN
-        _infix_func_table[RIGHT_PAREN] = std::make_pair(&Parser::infixboom, -1);
+        _infix_func_table[EQUALS] = std::make_pair(&Parser::parseBinaryOp, 10);
+        _infix_func_table[COMMA] = std::make_pair(&Parser::parseCommaList, 20);
+        _infix_func_table[PLUS] = std::make_pair(&Parser::parseBinaryOp, 30);
+        _infix_func_table[MINUS] = std::make_pair(&Parser::parseBinaryOp, 30);
+        _infix_func_table[DIV] = std::make_pair(&Parser::parseBinaryOp, 40);
+        _infix_func_table[MULT] = std::make_pair(&Parser::parseBinaryOp, 40);
+        _infix_func_table[BANG] = std::make_pair(&Parser::parseBinaryOp, 80);
+        _infix_func_table[LEFT_PAREN] = std::make_pair(&Parser::parseCall, 100);
+        _infix_func_table[LEFT_BRACKET] = std::make_pair(&Parser::parseSubscript, 100);
+        // if seen, should always stop parsing at RIGHT_PAREN, RIGHT_BRACKET
+        _infix_func_table[RIGHT_PAREN]   = std::make_pair(&Parser::infixboom, -777);
+        _infix_func_table[RIGHT_BRACKET] = std::make_pair(&Parser::infixboom, -777);
     }
 
-    Expr* ParseExpr(int precedence=0) {
-        auto c = _curr_token->type;
-        printf("calling prefix fn for %dth tok %s\n",getTokenPos(),token_to_str[_curr_token->type]);
+    Expr* ParseExpr(int precedence = 0) {
+        if (endoftokens()) return new EmptyExpr; 
+        auto c = tokit->type;
+        printf("calling prefix fn for %dth tok %s\n", getTokenPos(),
+               token_to_str[tokit->type]);
         Expr* expr = getPrefixFunc(c)(*this);
 
         while (precedence < getPrecedence()) {
-            printf("calling infix fn for %dth tok %s\n",getTokenPos(),token_to_str[_curr_token->type]);
-            expr = getInfixFunc(_curr_token->type)(*this, expr);
+            printf("calling infix fn for %dth tok %s\n", getTokenPos(),
+                   token_to_str[tokit->type]);
+            expr = getInfixFunc(tokit->type)(*this, expr);
         }
-        printf("ending parse for %dth tok %s\n",getTokenPos(),token_to_str[_curr_token->type]);
-
+        printf("ending parse for %dth tok %s\n", getTokenPos(),
+               token_to_str[tokit->type]);
 
         return expr;
     }
 
-    int getTokenPos() { return _curr_token - _tokens.begin(); }
+    int getTokenPos() { return tokit - _tokens.begin(); }
 
     Prec getPrecedence() {
-        if (_curr_token == _tokens.end()) {
+        if (tokit == _tokens.end()) {
             return -9999999;
         } else {
-            return getInfixPrec(_curr_token->type);
+            return getInfixPrec(tokit->type);
         }
     }
 
     void initPrefixTable(PrefixTable& functable) {
         functable.resize(NUM_TOKEN_TYPES);
-        for (int i = 0; i < NUM_TOKEN_TYPES; i++){
+        for (int i = 0; i < NUM_TOKEN_TYPES; i++) {
             _prefix_func_table[i] = std::make_pair(&prefixboom, 100);
         }
     }
@@ -430,11 +488,14 @@ struct Parser {
     }
 
     // return curr token and advance
-    const Token& consume() { return *(_curr_token++); };
+    const Token& consume() { return *(tokit++); };
+    const Token& currtoken() { return *tokit; };
+    TokenType currtype() { return tokit->type; };
+    bool endoftokens() { return tokit == _tokens.end(); };
     PrefixTable _prefix_func_table;
     InfixTable _infix_func_table;
     std::vector<Token> _tokens;
-    TokIter _curr_token;
+    TokIter tokit;
 
     // prefix functions
     // NOTE: parsing functions must consume what they use!
@@ -447,7 +508,7 @@ struct Parser {
     static UnaryOpExpr* parseUnaryOp(Parser& parser) {
         TokenType type = parser.consume().type;
         auto right = parser.ParseExpr(parser.getPrefixPrec(type));
-        return new UnaryOpExpr(type,right);
+        return new UnaryOpExpr(type, right);
     }
 
     // infix functions
@@ -458,22 +519,64 @@ struct Parser {
         auto right = parser.ParseExpr(parser.getInfixPrec(type));
         return new BinaryOpExpr(left, type, right);
     }
+
     static CallExpr* parseCall(Parser& parser, Expr* fn_name) {
         parser.consume(); // consume paren
-        // XXX: should make this a CommaListExpr or something ...
-        auto args = parser.ParseExpr(parser.getInfixPrec(LEFT_PAREN));
+        Expr* args;
+        if (parser.currtype() != RIGHT_PAREN){
+            // use low precedence for rhs; call should bind tightly on LHS but weakly on RHS
+            args = parser.ParseExpr(0);
+        } else {
+            args = new EmptyExpr;
+        }
         TokenType right_paren = parser.consume().type; // consume paren
         assert(right_paren && "expected paren when parsing call expr");
-        return new CallExpr(fn_name, {args});
+        return new CallExpr(fn_name, args);
+    }
+
+    static SubscriptExpr* parseSubscript(Parser& parser, Expr* array_name) {
+        parser.consume(); // consume bracket
+        Expr* index_expr;
+        if (parser.currtype() != RIGHT_BRACKET){
+            // use low precedence for rhs; call should bind tightly on LHS but weakly on RHS
+            index_expr = parser.ParseExpr(0);
+        } else {
+            assert(0 && "expected expression for array subscript operator");
+        } 
+        TokenType right_bracket = parser.consume().type; // consume bracket
+        assert(right_bracket && "expected closing right-bracket when parsing subscript expr");
+        return new SubscriptExpr(array_name, index_expr);
+    }
+
+    static CommaListExpr* parseCommaList(Parser& parser, Expr* first_elem) {
+        parser.consume(); // consume comma
+        std::vector<Expr*> list_elems = {first_elem};
+        list_elems.push_back(parser.ParseExpr(parser.getInfixPrec(COMMA)));
+
+        // add items to list as long as they are available 
+        while (parser.currtype() == COMMA){
+            parser.consume(); // consume comma
+            list_elems.push_back(parser.ParseExpr(parser.getInfixPrec(COMMA)));
+        }
+
+        return new CommaListExpr(list_elems);
     }
 
     static Expr* prefixboom(Parser& parser) {
-        fprintf(stderr,"\u001b[31m""prefixFunc for token type %s unimplemented.\n""\u001b[0m",token_to_str[parser._curr_token->type]);
+        fprintf(stderr,
+                RED 
+                "prefixFunc for token type %s unimplemented.\n"
+                RESET,
+                token_to_str[parser.tokit->type]);
         exit(1);
         return new Expr();
     }
     static Expr* infixboom(Parser& parser, Expr*) {
-        fprintf(stderr,"\u001b[31m""infixFunc for token type %s unimplemented.\n""\u001b[0m",token_to_str[parser._curr_token->type]);
+        fprintf(stderr,
+                RED
+                "infixFunc for token type %s unimplemented.\n"
+                RESET,
+                token_to_str[parser.tokit->type]);
         exit(1);
         return new Expr();
     }
@@ -511,7 +614,7 @@ void run_file(char* filepath, bool dump_source) {
         char *startofline = filebuf, *endofline = filebuf;
         int lineno = 0;
         while ((endofline = getnewlinebound(startofline)) != nullptr) {
-            printf("\u001b[36m%3d:\u001b[0m ", lineno);
+            printf(CYAN "%3d:" RESET, lineno);
             for (; startofline < endofline; ++startofline) {
                 putchar(*startofline);
             }
@@ -541,7 +644,7 @@ void run_prompt() { printf("prompt goes here\n"); }
 int main(int argc, char** argv) {
 
     if (argc == 2) {
-        run_file(argv[1], true);
+        run_file(argv[1], false);
     } else if (argc == 1) {
         run_prompt();
     } else {
