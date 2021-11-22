@@ -24,6 +24,12 @@ run: lib exe
 	$(info --------------------------)	
 	@ ./$(BIN_DIR)/$(EXE) $(TEST_INPUT_DIR)/test02 
 
+debug:
+	$(info )	
+	$(info --------------------------)	
+	@ gdb --args ./$(BIN_DIR)/$(EXE) $(TEST_INPUT_DIR)/test02 
+
+
 exe: lib
 	$(info )	
 	$(info --------------------------)	

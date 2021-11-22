@@ -4,8 +4,8 @@ Language: Cpp
 DerivePointerAlignment: false
 PointerAlignment: Left
 
-AlignConsecutiveAssignments: true
-AlignTrailingComments: true
+#AlignConsecutiveAssignments: true
+#AlignTrailingComments: true
 
 BinPackArguments: false
 BinPackParameters: false

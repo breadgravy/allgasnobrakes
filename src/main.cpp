@@ -77,10 +77,10 @@ const char* token_to_str[] = {
 #undef DECL_TOKEN_TYPE
 
 struct Token {
-    TokenType type        = NUM_TOKEN_TYPES;
+    TokenType type = NUM_TOKEN_TYPES;
     const std::string str = "";
-    int lineno            = 0;
-    int linepos           = 0;
+    int lineno = 0;
+    int linepos = 0;
 };
 
 #define SINGLE_CHAR_TOKEN(__ch__, __token_type__)                                                                      \
@@ -98,8 +98,8 @@ struct Scanner {
     Scanner() = delete;
     Scanner(const char* buf) : _srcbuf(buf), _sz(strlen(buf)) {}
     std::vector<Token> scan() {
-        char ch  = *_srcbuf;
-        _lineno  = 0;
+        char ch = *_srcbuf;
+        _lineno = 0;
         _linepos = 0;
         while (ch != '\0') {
             switch (ch) {
@@ -120,7 +120,7 @@ struct Scanner {
                 // TODO: implement keyword check
                 // TokenType kw = parseKeyword();
                 std::string idstr = consumeId();
-                TokenType kw      = getKeywordTokenType(idstr);
+                TokenType kw = getKeywordTokenType(idstr);
                 tok(kw, idstr);
                 break;
             }
@@ -236,10 +236,10 @@ struct Scanner {
     }
 
     std::vector<Token> _tokens;
-    int _linepos        = 0;
-    int _lineno         = 0;
+    int _linepos = 0;
+    int _lineno = 0;
     const char* _srcbuf = nullptr;
-    const size_t _sz    = 0;
+    const size_t _sz = 0;
 };
 
 #if 0
@@ -420,7 +420,18 @@ struct CommaListExpr : Expr {
 };
 
 struct BlockExpr : Expr {
-    void print(int depth) {}
+    BlockExpr() = delete;
+    BlockExpr(std::vector<Expr*> stmts) : stmts(stmts) {}
+    std::vector<Expr*> stmts;
+    void print(int depth) {
+        printTabs(depth);
+        printf("(Block \n");
+        for (auto expr : stmts) {
+            expr->print(depth + 1);
+        }
+        printTabs(depth);
+        printf(")\n");
+    }
 };
 
 struct ForExpr : Expr {
@@ -455,42 +466,42 @@ struct Parser {
         tokit = _tokens.begin();
 
         initPrefixTable(_prefix_func_table);
-        // XXX not sure if parseBlock should be prefix or infix ...
         _prefix_func_table[LEFT_BRACE] = std::make_pair(&Parser::parseBlock, 0);
         _prefix_func_table[LEFT_PAREN] = std::make_pair(&Parser::parseGrouping, 0);
-        _prefix_func_table[RET]        = std::make_pair(&Parser::parseReturn, 0);
-        _prefix_func_table[ID]         = std::make_pair(&Parser::parseID, 5);
-        _prefix_func_table[NUM]        = std::make_pair(&Parser::parseNum, 5);
-        _prefix_func_table[BANG]       = std::make_pair(&Parser::parseUnaryOp, 30);
-        _prefix_func_table[FOR]        = std::make_pair(&Parser::parseFor, 100);
+        _prefix_func_table[RET] = std::make_pair(&Parser::parseReturn, 0);
+        _prefix_func_table[ID] = std::make_pair(&Parser::parseID, 5);
+        _prefix_func_table[NUM] = std::make_pair(&Parser::parseNum, 5);
+        _prefix_func_table[BANG] = std::make_pair(&Parser::parseUnaryOp, 30);
+        _prefix_func_table[FOR] = std::make_pair(&Parser::parseFor, 100);
+        _prefix_func_table[RIGHT_BRACE] = std::make_pair(&Parser::parseBlock, -77);
 
         initInfixTable(_infix_func_table);
-        _infix_func_table[EQUALS]       = std::make_pair(&Parser::parseBinaryOp, 10);
-        _infix_func_table[COMMA]        = std::make_pair(&Parser::parseCommaList, 20);
-        _infix_func_table[COLON]        = std::make_pair(&Parser::parseBinaryOp, 22);
-        _infix_func_table[TO]           = std::make_pair(&Parser::parseBinaryOp, 23);
-        _infix_func_table[CMP]          = std::make_pair(&Parser::parseBinaryOp, 24);
-        _infix_func_table[OR]           = std::make_pair(&Parser::parseBinaryOp, 25);
-        _infix_func_table[AND]          = std::make_pair(&Parser::parseBinaryOp, 26);
-        _infix_func_table[PLUS]         = std::make_pair(&Parser::parseBinaryOp, 30);
-        _infix_func_table[MINUS]        = std::make_pair(&Parser::parseBinaryOp, 30);
-        _infix_func_table[DIV]          = std::make_pair(&Parser::parseBinaryOp, 40);
-        _infix_func_table[MULT]         = std::make_pair(&Parser::parseBinaryOp, 40);
-        _infix_func_table[BANG]         = std::make_pair(&Parser::parseBinaryOp, 80);
-        _infix_func_table[LEFT_PAREN]   = std::make_pair(&Parser::parseCall, 100);
+        _infix_func_table[EQUALS] = std::make_pair(&Parser::parseBinaryOp, 10);
+        _infix_func_table[COMMA] = std::make_pair(&Parser::parseCommaList, 20);
+        _infix_func_table[COLON] = std::make_pair(&Parser::parseBinaryOp, 22);
+        _infix_func_table[TO] = std::make_pair(&Parser::parseBinaryOp, 23);
+        _infix_func_table[CMP] = std::make_pair(&Parser::parseBinaryOp, 24);
+        _infix_func_table[OR] = std::make_pair(&Parser::parseBinaryOp, 25);
+        _infix_func_table[AND] = std::make_pair(&Parser::parseBinaryOp, 26);
+        _infix_func_table[PLUS] = std::make_pair(&Parser::parseBinaryOp, 30);
+        _infix_func_table[MINUS] = std::make_pair(&Parser::parseBinaryOp, 30);
+        _infix_func_table[DIV] = std::make_pair(&Parser::parseBinaryOp, 40);
+        _infix_func_table[MULT] = std::make_pair(&Parser::parseBinaryOp, 40);
+        _infix_func_table[BANG] = std::make_pair(&Parser::parseBinaryOp, 80);
+        _infix_func_table[LEFT_PAREN] = std::make_pair(&Parser::parseCall, 100);
         _infix_func_table[LEFT_BRACKET] = std::make_pair(&Parser::parseSubscript, 100);
         // assume that finding these tokens in infix context implies an expression boundary
-        _infix_func_table[ID]        = std::make_pair(&Parser::infixboom, -77);
-        _infix_func_table[NUM]       = std::make_pair(&Parser::infixboom, -77);
-        _infix_func_table[FOR]       = std::make_pair(&Parser::infixboom, -77);
-        _infix_func_table[IF]        = std::make_pair(&Parser::infixboom, -77);
-        _infix_func_table[RET]       = std::make_pair(&Parser::infixboom, -77);
+        _infix_func_table[ID] = std::make_pair(&Parser::infixboom, -77);
+        _infix_func_table[NUM] = std::make_pair(&Parser::infixboom, -77);
+        _infix_func_table[FOR] = std::make_pair(&Parser::infixboom, -77);
+        _infix_func_table[IF] = std::make_pair(&Parser::infixboom, -77);
+        _infix_func_table[RET] = std::make_pair(&Parser::infixboom, -77);
         _infix_func_table[SEMICOLON] = std::make_pair(&Parser::infixboom, -77);
         // if seen, should always stop parsing at RIGHT_PAREN, RIGHT_BRACKET
-        _infix_func_table[RIGHT_PAREN]   = std::make_pair(&Parser::infixboom, -777);
+        _infix_func_table[RIGHT_PAREN] = std::make_pair(&Parser::infixboom, -777);
         _infix_func_table[RIGHT_BRACKET] = std::make_pair(&Parser::infixboom, -777);
         // BRACE should not ever be parsed as infix
-        _infix_func_table[LEFT_BRACE]  = std::make_pair(&Parser::infixboom, -777);
+        _infix_func_table[LEFT_BRACE] = std::make_pair(&Parser::infixboom, -777);
         _infix_func_table[RIGHT_BRACE] = std::make_pair(&Parser::infixboom, -777);
     }
 
@@ -499,34 +510,44 @@ struct Parser {
         if (endoftokens())
             return new EmptyExpr;
         auto c = tokit->type;
-        // printf("calling prefix fn for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
+        printf("calling prefix fn for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
         Expr* expr = getPrefixFunc(c)(*this);
 
-        while (precedence < getPrecedence()) {
-            // printf("calling infix fn for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
+        while (precedence < getInfixPrecedence()) {
+            printf("calling infix fn for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
             expr = getInfixFunc(tokit->type)(*this, expr);
         }
-        // printf("ending parse for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
+        printf("ending parse for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
 
         return expr;
     }
 
-    std::vector<Expr*> Parse() {
+    std::vector<Expr*> ParseStatements(int precedence = 0) {
         std::vector<Expr*> statements;
         // use these to check for forward progress
-        while (not endoftokens()) {
+        while (not endoftokens() and precedence < getPrefixPrecedence()) {
+            printf("\nparsing statement at %s on LINE %d POS %d\n",
+                   token_to_str[tokit->type],
+                   tokit->lineno,
+                   tokit->linepos);
+
             auto expr = ParseExpr();
             statements.push_back(expr);
 
-            auto semicolon = consume();
-            // if (semicolon.type != SEMICOLON){
-            //    printf("expected semicolon on line %d, pos %d\n",semicolon.lineno,semicolon.linepos);
-            //}
-
-            expr->print();
-            printf("\n");
-            if (not endoftokens()) {
-                // printf("\tNext token to start parsing is : %s\n",token_to_str[tokit->type]);
+            // detect erorrs with statement termination
+            if (endoftokens() and lasttype() != RIGHT_BRACE) {
+                fprintf(stderr, RED "Hit EOF without finding statement terminator (; or }) \n" RESET);
+                assert(0);
+            } else if (currtype() != SEMICOLON and lasttype() != RIGHT_BRACE) {
+                fprintf(stderr,
+                        RED "Expected stmt terminator *before* token on line %d, pos %d\n" RESET,
+                        currtoken().lineno,
+                        currtoken().linepos);
+                assert(0);
+            } else if (currtype() == SEMICOLON) {
+                consume(); // get rid of semicolon
+            } else if (lasttype() == RIGHT_BRACE) {
+                // accept a right brace as implictly terminating statement
             }
         }
         return statements;
@@ -538,12 +559,16 @@ struct Parser {
     static NumExpr* parseNum(Parser& parser) { return new NumExpr(atof(parser.consume().str.c_str())); }
     static UnaryOpExpr* parseUnaryOp(Parser& parser) {
         TokenType type = parser.consume().type;
-        auto right     = parser.ParseExpr(parser.getPrefixPrec(type));
+        auto right = parser.ParseExpr(parser.getPrefixPrec(type));
         return new UnaryOpExpr(type, right);
     }
     static Expr* parseGrouping(Parser& parser) {
         parser.consume(); // consume left paren
-        auto expr             = parser.ParseExpr(parser.getPrefixPrec(LEFT_PAREN));
+        if (parser.currtype() == RIGHT_PAREN) {
+            parser.consume();
+            return new EmptyExpr;
+        }
+        auto expr = parser.ParseExpr(parser.getPrefixPrec(LEFT_PAREN));
         TokenType right_paren = parser.consume().type; // consume right paren
         assert(right_paren && "expected paren when parsing call expr");
         return expr;
@@ -553,13 +578,21 @@ struct Parser {
         auto expr = parser.ParseExpr(parser.getPrefixPrec(RET));
         return new ReturnExpr(expr);
     }
-    // TODO implement this!
     static BlockExpr* parseBlock(Parser& parser) {
-        assert("parseBlock() is unimplemented" && 0);
-        parser.consume();                              // consume brace
-        TokenType right_brace = parser.consume().type; // consume bracket
-        assert(right_brace == RIGHT_BRACE && "expected closing right-brace when parsing subscript expr");
-        return new BlockExpr();
+        printf("parsing block stmt starting here: %s\n", token_to_str[parser.currtype()]);
+        parser.consume(); // consume brace
+        std::vector<Expr*> statements;
+        if (parser.currtype() == RIGHT_BRACE) {
+            // handle empty block
+            statements = {new EmptyExpr};
+        } else {
+            printf("\tparsing block stmt here: %s\n", token_to_str[parser.currtype()]);
+            statements = parser.ParseStatements();
+            printf("\tdone parsing block\n");
+        }
+        auto last_token_type = parser.consume().type; // consume brace
+        assert(last_token_type == RIGHT_BRACE && "expected closing right-brace when parsing block expr");
+        return new BlockExpr(statements);
     }
     static ForExpr* parseFor(Parser& parser) {
         parser.consume();
@@ -571,7 +604,7 @@ struct Parser {
         parser.consume();
 
         auto update_expr = parser.ParseExpr(0);
-        auto loop_body   = parser.ParseExpr(0);
+        auto loop_body = parser.ParseExpr(0);
 
         return new ForExpr(loop_var, update_expr, loop_body);
     }
@@ -643,13 +676,8 @@ struct Parser {
     // Helper functions
     int getTokenPos() { return tokit - _tokens.begin(); }
 
-    Prec getPrecedence() {
-        if (tokit == _tokens.end()) {
-            return -9999999;
-        } else {
-            return getInfixPrec(tokit->type);
-        }
-    }
+    Prec getInfixPrecedence() { return endoftokens() ? -9999  : getInfixPrec(tokit->type); }
+    Prec getPrefixPrecedence() { return endoftokens() ? -9999 : getPrefixPrec(tokit->type); }
 
     // initialize function tables
     void initPrefixTable(PrefixTable& functable) {
@@ -684,7 +712,8 @@ struct Parser {
     // token stream manipulation
     const Token& consume() { return *(tokit++); };
     const Token& currtoken() { return *tokit; };
-    TokenType currtype() { return tokit->type; };
+    TokenType currtype() { return endoftokens() ? NONE : tokit->type; };
+    TokenType lasttype() { return std::prev(tokit)->type; };
     bool endoftokens() { return tokit == _tokens.end(); };
 
     // variables
@@ -706,8 +735,8 @@ void run_file(char* filepath, bool dump_source) {
 
     // read file into a buffer
     size_t filesize = get_filesize(filepath);
-    char* filebuf   = (char*)malloc(filesize + 1);
-    FILE* fp        = fopen(filepath, "r");
+    char* filebuf = (char*)malloc(filesize + 1);
+    FILE* fp = fopen(filepath, "r");
     fread(filebuf, sizeof(char), filesize, fp);
 
     // detect errors if any and close fp
@@ -746,7 +775,10 @@ void run_file(char* filepath, bool dump_source) {
 
     printDiv("Parser");
     Parser parser(tokens);
-    auto statements = parser.Parse();
+    auto statements = parser.ParseStatements();
+    for (auto& stmt : statements){
+        stmt->print();
+    }
 
     printDiv("cleanup");
 }
