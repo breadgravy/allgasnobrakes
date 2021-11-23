@@ -299,157 +299,129 @@ struct Scanner {
 struct Parser;
 
 struct Expr {
-    virtual void print(int depth = 0) {}
+    void print(int depth = 0) { printf("%s\n", str().c_str()); }
+    virtual std::string str(int depth = 0) { return "Expr()"; }
+    virtual bool isNameExpr() { return false; }
     virtual ~Expr();
+    std::string tabs(int depth) {
+        std::string tabs;
+        for (int i = 0; i < depth; i++)
+            tabs.append("  ");
+        return tabs;
+    }
 };
 Expr::~Expr() {}
 
 /////////////////////////////////////////////////////////////////////////
 // Expression Types
 /////////////////////////////////////////////////////////////////////////
-void printTabs(int depth) {
-    for (int i = 0; i < depth; i++)
-        printf("  ");
-}
+
 struct EmptyExpr : Expr {
-    void print(int depth) {
-        printTabs(depth);
-        printf("(EMPTY)\n");
-    }
+    std::string str(int depth) { return "(EMPTY)"; }
 };
 struct NameExpr : Expr {
     NameExpr(std::string name) : name(std::move(name)) {}
+    bool isNameExpr() { return true; }
+    std::string str(int depth) { return tabs(depth) + "Name[\"" + name + "\"]"; }
+    void print(int depth) { printf("%s\n", str(depth).c_str()); }
     std::string name;
-    void print(int depth) {
-        printTabs(depth);
-        printf("Name[\"%s\"]\n", name.c_str());
-    }
 };
 struct NumExpr : Expr {
     NumExpr(double num) : num(num) {}
+    std::string str(int depth) { return tabs(depth) + "Num[" + std::to_string(num) + "]"; }
     double num;
-    void print(int depth) {
-        printTabs(depth);
-        printf("Num[%g]\n", num);
-    }
 };
 struct UnaryOpExpr : Expr {
     UnaryOpExpr(TokenType type, Expr* right) : type(type), right(right) {}
+    std::string str(int depth) {
+        return tabs(depth) + "(UnaryOp[" + token_to_str[type] + "]\n" + right->str(depth + 1) + ")";
+    }
     TokenType type;
     Expr* right;
-    void print(int depth) {
-        printTabs(depth);
-        printf("(UnaryOp[%s] \n", token_to_str[type]);
-        right->print(depth + 1);
-        printTabs(depth);
-        printf(")\n");
-    }
 };
 struct BinaryOpExpr : Expr {
     BinaryOpExpr() = delete;
     BinaryOpExpr(Expr* left, TokenType type, Expr* right) : left(left), type(type), right(right) {}
+    std::string str(int depth) {
+        return tabs(depth) + "(BinaryOp[" + token_to_str[type] + "]\n" + left->str(depth + 1) + "\n" +
+               right->str(depth + 1)  + ")";
+    }
     Expr* left;
     TokenType type;
     Expr* right;
-    void print(int depth) {
-        printTabs(depth);
-        printf("(BinaryOp[%s] \n", token_to_str[type]);
-        left->print(depth + 1);
-        right->print(depth + 1);
-        printTabs(depth);
-        printf(")\n");
-    }
 };
 
 struct CallExpr : Expr {
     CallExpr() = delete;
-    CallExpr(Expr* fn_name, Expr* args) : fn_name(fn_name), args(args) {}
-    Expr* fn_name;
-    Expr* args;
-    void print(int depth) {
-        printTabs(depth);
-        printf("(Function \n");
-        fn_name->print(depth + 1);
-        args->print(depth + 1);
-        printTabs(depth);
-        printf(")\n");
+    CallExpr(NameExpr* fn_name, Expr* args) : fn_name(fn_name), args(args) {}
+    std::string str(int depth) {
+        return tabs(depth) + "(Call[" + fn_name->name + "]\n" 
+            + args->str(depth + 1) + ")";
     }
+    NameExpr* fn_name;
+    Expr* args;
 };
 
 struct ReturnExpr : Expr {
     ReturnExpr() = delete;
     ReturnExpr(Expr* value) : value(value) {}
-    Expr* value;
-    void print(int depth) {
-        printTabs(depth);
-        printf("(Return\n");
-        value->print(depth + 1);
-        printTabs(depth);
-        printf(")\n");
+    std::string str(int depth) {
+        return tabs(depth) + "(Return "  "\n" + value->str() + "\n" + tabs(depth) + ")";
     }
+    Expr* value;
 };
 
 struct SubscriptExpr : Expr {
     SubscriptExpr() = delete;
     SubscriptExpr(Expr* array_name, Expr* index) : array_name(array_name), index(index) {}
+    std::string str(int depth) {
+        return tabs(depth) + "(ArrIndex \n" + array_name->str(depth+1) + "\n" + index->str(depth+1) +")";
+    }
     Expr* array_name;
     Expr* index;
-    void print(int depth) {
-        printTabs(depth);
-        printf("(ArrIndex\n");
-        array_name->print(depth + 1);
-        index->print(depth + 1);
-        printTabs(depth);
-        printf(")\n");
-    }
 };
 
 struct CommaListExpr : Expr {
     CommaListExpr() = delete;
     CommaListExpr(std::vector<Expr*> exprs) : exprs(exprs) {}
-    std::vector<Expr*> exprs;
-    void print(int depth) {
-        printTabs(depth);
-        printf("(CommaList \n");
-        for (auto expr : exprs) {
-            expr->print(depth + 1);
+    std::string str(int depth) {
+        std::string str = tabs(depth) + "(CommaList \n";
+        for (const auto expr : exprs){
+            expr->str(depth+1) + "\n";
         }
-        printTabs(depth);
-        printf(")\n");
+        return str + ")";
     }
+    std::vector<Expr*> exprs;
 };
 
 struct BlockExpr : Expr {
     BlockExpr() = delete;
     BlockExpr(std::vector<Expr*> stmts) : stmts(stmts) {}
-    std::vector<Expr*> stmts;
-    void print(int depth) {
-        printTabs(depth);
-        printf("(Block \n");
-        for (auto expr : stmts) {
-            expr->print(depth + 1);
+    std::string str(int depth) {
+        std::string str = tabs(depth) + "{BlockExpr ";
+        for (const auto expr : stmts){
+            str += "\n" + expr->str(depth+1);
         }
-        printTabs(depth);
-        printf(")\n");
+        return str + "}";
     }
+    std::vector<Expr*> stmts;
 };
 
 struct ForExpr : Expr {
     ForExpr() = delete;
-    ForExpr(Expr* loop_var, Expr* update_expr, Expr* loop_body)
-        : loop_var(loop_var), update_expr(update_expr), loop_body(loop_body) {}
-    Expr* loop_var;
-    Expr* update_expr;
-    Expr* loop_body;
-    void print(int depth) {
-        printTabs(depth);
-        printf("(For \n");
-        loop_var->print(depth + 1);
-        update_expr->print(depth + 1);
-        loop_body->print(depth + 1);
-        printTabs(depth);
-        printf(")\n");
+    ForExpr(Expr* loop_var, Expr* range_expr, Expr* loop_body)
+        : loop_var(loop_var), range_expr(range_expr), loop_body(loop_body) {}
+    std::string str(int depth) {
+        std::string str = tabs(depth) + "{ForExpr \n";
+        str += loop_var->str(depth+1) + "\n";
+        str += range_expr->str(depth+1) + "\n";
+        str += loop_body->str(depth+1) + "\n";
+        return str + "}";
     }
+
+    Expr* loop_var;
+    Expr* range_expr;
+    Expr* loop_body;
 };
 
 // indexed by token type
@@ -509,15 +481,16 @@ struct Parser {
     Expr* ParseExpr(int precedence = 0) {
         if (endoftokens())
             return new EmptyExpr;
-        auto c = tokit->type;
-        printf("calling prefix fn for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
-        Expr* expr = getPrefixFunc(c)(*this);
+        auto prefix_type = tokit->type;
+        auto token_pos = getTokenPos();
+        printf("calling prefix fn for %dth tok %s\n", token_pos, token_to_str[prefix_type]);
+        Expr* expr = getPrefixFunc(prefix_type)(*this);
 
         while (precedence < getInfixPrecedence()) {
             printf("calling infix fn for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
             expr = getInfixFunc(tokit->type)(*this, expr);
         }
-        printf("ending parse for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
+        printf("ending prefix parse for %dth tok %s\n", token_pos, token_to_str[prefix_type]);
 
         return expr;
     }
@@ -526,10 +499,10 @@ struct Parser {
         std::vector<Expr*> statements;
         // use these to check for forward progress
         while (not endoftokens() and precedence < getPrefixPrecedence()) {
-            printf("\nparsing statement at %s on LINE %d POS %d\n",
-                   token_to_str[tokit->type],
-                   tokit->lineno,
-                   tokit->linepos);
+            // printf("\nparsing statement at %s on LINE %d POS %d\n",
+            //       token_to_str[tokit->type],
+            //       tokit->lineno,
+            //       tokit->linepos);
 
             auto expr = ParseExpr();
             statements.push_back(expr);
@@ -537,16 +510,17 @@ struct Parser {
             // detect erorrs with statement termination
             if (endoftokens() and lasttype() != RIGHT_BRACE) {
                 fprintf(stderr, RED "Hit EOF without finding statement terminator (; or }) \n" RESET);
-                assert(0);
+                exit(1);
             } else if (currtype() != SEMICOLON and lasttype() != RIGHT_BRACE) {
                 fprintf(stderr,
                         RED "Expected stmt terminator *before* token on line %d, pos %d\n" RESET,
                         currtoken().lineno,
                         currtoken().linepos);
-                assert(0);
+                exit(1);
             } else if (currtype() == SEMICOLON) {
                 consume(); // get rid of semicolon
             } else if (lasttype() == RIGHT_BRACE) {
+                // fprintf(stderr, RED "accepting right brace as closing statement \n" RESET);
                 // accept a right brace as implictly terminating statement
             }
         }
@@ -603,10 +577,10 @@ struct Parser {
         assert(parser.currtype() == COLON);
         parser.consume();
 
-        auto update_expr = parser.ParseExpr(0);
+        auto range_expr = parser.ParseExpr(0);
         auto loop_body = parser.ParseExpr(0);
 
-        return new ForExpr(loop_var, update_expr, loop_body);
+        return new ForExpr(loop_var, range_expr, loop_body);
     }
 
     // infix functions
@@ -618,7 +592,9 @@ struct Parser {
         return new BinaryOpExpr(left, type, right);
     }
 
-    static CallExpr* parseCall(Parser& parser, Expr* fn_name) {
+    static CallExpr* parseCall(Parser& parser, Expr* left) {
+        assert(left->isNameExpr());
+        auto fn_name = dynamic_cast<NameExpr*>(left);
         parser.consume(); // consume paren
         Expr* args;
         if (parser.currtype() != RIGHT_PAREN) {
@@ -676,7 +652,7 @@ struct Parser {
     // Helper functions
     int getTokenPos() { return tokit - _tokens.begin(); }
 
-    Prec getInfixPrecedence() { return endoftokens() ? -9999  : getInfixPrec(tokit->type); }
+    Prec getInfixPrecedence() { return endoftokens() ? -9999 : getInfixPrec(tokit->type); }
     Prec getPrefixPrecedence() { return endoftokens() ? -9999 : getPrefixPrec(tokit->type); }
 
     // initialize function tables
@@ -776,7 +752,7 @@ void run_file(char* filepath, bool dump_source) {
     printDiv("Parser");
     Parser parser(tokens);
     auto statements = parser.ParseStatements();
-    for (auto& stmt : statements){
+    for (auto& stmt : statements) {
         stmt->print();
     }
 

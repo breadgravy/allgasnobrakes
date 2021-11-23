@@ -1,14 +1,18 @@
-#b = 1 * !f(a) + id / blah;
-#1 , 2 , 3, 4 + v = tomato;
-#a = (a, b, c);
-#a = b;
-#a = b;
-#ret i : a and b or c to 90 cmp 100;
-for i : a to b {
-    c = d and e;
-    { }
-}  
-a = b; 
+#a = !b + v(1) * arr[1];
+b = {
+    a = b;
+    #ret i : a and b or c to 90 cmp 100;
+};
+a = { b = d; };  
+#for i : a to b {
+#    for i : a to b {
+#        a + b;
+#    }
+#    c = d;
+#    h + b * gatorade;
+#    a = { 
+#    }
+#}  
 #    a = b;
 #    func(b);
 #    a(b);
