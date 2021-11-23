@@ -4,7 +4,7 @@ OBJ_DIR=obj
 TEST_DIR=test
 TEST_INPUT_DIR=test/input/
 CC=clang++
-CC_FLAG= -Wall --std=c++17
+CC_FLAG= -Wall --std=c++17 
 
 # first convert all .c extension to .cpp, then everything into .o
 _TMP = $(patsubst $(SRC_DIR)/%.cpp, $(SRC_DIR)/%.cpp,$(wildcard $(SRC_DIR)/*.c*))
@@ -21,18 +21,18 @@ lib: $(OBJN)
 
 run: lib exe
 	$(info )	
-	$(info --------------------------)	
+	$(info --------------------------------------------------------------------------------)
 	@ ./$(BIN_DIR)/$(EXE) $(TEST_INPUT_DIR)/test02 
 
 debug:
 	$(info )	
-	$(info --------------------------)	
+	$(info --------------------------------------------------------------------------------)
 	@ gdb --args ./$(BIN_DIR)/$(EXE) $(TEST_INPUT_DIR)/test02 
 
 
 exe: lib
 	$(info )	
-	$(info --------------------------)	
+	$(info --------------------------------------------------------------------------------)
 	$(info Compiling exe bin/test ... )	
 	@time -f "Compiled exe in %e seconds" $(CC) $(CC_FLAG) $(SRC_DIR)/main.cpp $(OBJN) -o $(BIN_DIR)/$(EXE)
 
