@@ -64,13 +64,19 @@ void printDiv(const char* str) {
 #define RESET "\u001b[0m"
 
 ///////////////////////////////////////////////////////////////////////////////
-#define DECL_TOKEN_TYPE(type) type,
+#define DECL_TOKEN_TYPE(type, _) type,
 enum TokenType {
 #include "token_types.inc"
 };
 #undef DECL_TOKEN_TYPE
 
-#define DECL_TOKEN_TYPE(type) #type,
+#define DECL_TOKEN_TYPE(type, _) #type,
+const char* token_to_typestr[] = {
+#include "token_types.inc"
+};
+#undef DECL_TOKEN_TYPE
+
+#define DECL_TOKEN_TYPE(_, repr) repr,
 const char* token_to_str[] = {
 #include "token_types.inc"
 };
@@ -231,7 +237,11 @@ struct Scanner {
                 curr_lineno = tok.lineno;
                 printf("LINE %d: \n", curr_lineno);
             }
-            printf("\t%-12s = %-10s at %d,%d  \n", token_to_str[tok.type], tok.str.c_str(), tok.lineno, tok.linepos);
+            printf("\t%-12s = %-10s at %d,%d  \n",
+                   token_to_typestr[tok.type],
+                   tok.str.c_str(),
+                   tok.lineno,
+                   tok.linepos);
         }
     }
 
@@ -299,8 +309,12 @@ struct Scanner {
 struct Parser;
 
 struct Expr {
-    void print(int depth = 0) { printf("%s\n", str().c_str()); }
-    virtual std::string str(int depth = 0) { return "Expr()"; }
+    void print(int depth = 0, bool semicolon = false) { printf("%s%s\n", str().c_str(), semicolon ? ";" : ""); }
+    void verbosePrint(int depth = 0) { printf("%s\n", vstr().c_str()); }
+    // pretty print expression at requested indentation
+    virtual std::string str(int depth = 0) { return "(UNIMPLEMENTED)"; }
+    // print verbose representation
+    virtual std::string vstr(int depth = 0) { return "(UNIMPLEMENTED)"; }
     virtual bool isNameExpr() { return false; }
     virtual ~Expr();
     std::string tabs(int depth) {
@@ -317,35 +331,45 @@ Expr::~Expr() {}
 /////////////////////////////////////////////////////////////////////////
 
 struct EmptyExpr : Expr {
-    std::string str(int depth) { return tabs(depth) + "(EMPTY)"; }
+    std::string vstr(int depth) { return tabs(depth) + "(EMPTY)"; }
+    std::string str(int depth) { return tabs(depth); }
 };
 struct NameExpr : Expr {
     NameExpr(std::string name) : name(std::move(name)) {}
     bool isNameExpr() { return true; }
-    std::string str(int depth) { return tabs(depth) + "Name[\"" + name + "\"]"; }
-    void print(int depth) { printf("%s\n", str(depth).c_str()); }
+    std::string vstr(int depth) { return tabs(depth) + "Name[\"" + name + "\"]"; }
+    std::string str(int depth) { return name; }
     std::string name;
 };
 struct NumExpr : Expr {
     NumExpr(double num) : num(num) {}
-    std::string str(int depth) { return tabs(depth) + "Num[" + std::to_string(num) + "]"; }
+    std::string vstr(int depth) { 
+        char buf[200];
+        sprintf(buf,"%g",num);
+        return tabs(depth) + "Num[" + buf + "]"; }
+    std::string str(int depth) { 
+        char buf[200];
+        sprintf(buf,"%g",num);
+        return tabs(depth) + buf; }
     double num;
 };
 struct UnaryOpExpr : Expr {
     UnaryOpExpr(TokenType type, Expr* right) : type(type), right(right) {}
-    std::string str(int depth) {
-        return tabs(depth) + "(UnaryOp[" + token_to_str[type] + "]\n" + right->str(depth + 1) + ")";
+    std::string vstr(int depth) {
+        return tabs(depth) + "(UnaryOp[" + token_to_typestr[type] + "]\n" + right->vstr(depth + 1) + ")";
     }
+    std::string str(int depth) { return token_to_str[type] + right->str(); }
     TokenType type;
     Expr* right;
 };
 struct BinaryOpExpr : Expr {
     BinaryOpExpr() = delete;
     BinaryOpExpr(Expr* left, TokenType type, Expr* right) : left(left), type(type), right(right) {}
-    std::string str(int depth) {
-        return tabs(depth) + "(BinaryOp[" + token_to_str[type] + "]\n" + left->str(depth + 1) + "\n" +
-               right->str(depth + 1)  + ")";
+    std::string vstr(int depth) {
+        return tabs(depth) + "(BinaryOp[" + token_to_typestr[type] + "]\n" + left->vstr(depth + 1) + "\n" +
+               right->vstr(depth + 1) + ")";
     }
+    std::string str(int depth) { return tabs(depth) + left->str() + " " + token_to_str[type] + " " + right->str(); }
     Expr* left;
     TokenType type;
     Expr* right;
@@ -354,10 +378,8 @@ struct BinaryOpExpr : Expr {
 struct CallExpr : Expr {
     CallExpr() = delete;
     CallExpr(NameExpr* fn_name, Expr* args) : fn_name(fn_name), args(args) {}
-    std::string str(int depth) {
-        return tabs(depth) + "(Call[" + fn_name->name + "]\n" 
-            + args->str(depth + 1) + ")";
-    }
+    std::string vstr(int depth) { return tabs(depth) + "(Call[" + fn_name->name + "]\n" + args->vstr(depth + 1) + ")"; }
+    std::string str(int depth) { return tabs(depth) + fn_name->name + "(" + args->str() + ")"; }
     NameExpr* fn_name;
     Expr* args;
 };
@@ -365,18 +387,23 @@ struct CallExpr : Expr {
 struct ReturnExpr : Expr {
     ReturnExpr() = delete;
     ReturnExpr(Expr* value) : value(value) {}
-    std::string str(int depth) {
-        return tabs(depth) + "(Return "  "\n" + value->str() + "\n" + tabs(depth) + ")";
+    std::string vstr(int depth) {
+        return tabs(depth) +
+               "(Return "
+               "\n" +
+               value->vstr() + "\n" + tabs(depth) + ")";
     }
+    std::string str(int depth) { return tabs(depth) + "ret " + value->str(); }
     Expr* value;
 };
 
 struct SubscriptExpr : Expr {
     SubscriptExpr() = delete;
     SubscriptExpr(Expr* array_name, Expr* index) : array_name(array_name), index(index) {}
-    std::string str(int depth) {
-        return tabs(depth) + "(ArrIndex \n" + array_name->str(depth+1) + "\n" + index->str(depth+1) +")";
+    std::string vstr(int depth) {
+        return tabs(depth) + "(ArrIndex \n" + array_name->vstr(depth + 1) + "\n" + index->vstr(depth + 1) + ")";
     }
+    std::string str(int depth) { return tabs(depth) + array_name->str() + "[" + index->str() + "]"; }
     Expr* array_name;
     Expr* index;
 };
@@ -384,12 +411,21 @@ struct SubscriptExpr : Expr {
 struct CommaListExpr : Expr {
     CommaListExpr() = delete;
     CommaListExpr(std::vector<Expr*> exprs) : exprs(exprs) {}
-    std::string str(int depth) {
+    std::string vstr(int depth) {
         std::string str = tabs(depth) + "(CommaList \n";
-        for (const auto expr : exprs){
-            str += expr->str(depth+1) + "\n";
+        for (const auto expr : exprs) {
+            str += expr->vstr(depth + 1) + "\n";
         }
         return str + ")";
+    }
+    std::string str(int depth) {
+        std::string str = tabs(depth);
+        for (auto expr = exprs.begin(); expr != exprs.end(); expr++) {
+            str += (*expr)->str();
+            if (std::next(expr) != exprs.end())
+                str += ", ";
+        }
+        return str;
     }
     std::vector<Expr*> exprs;
 };
@@ -397,12 +433,22 @@ struct CommaListExpr : Expr {
 struct BlockExpr : Expr {
     BlockExpr() = delete;
     BlockExpr(std::vector<Expr*> stmts) : stmts(stmts) {}
-    std::string str(int depth) {
+    std::string vstr(int depth) {
         std::string str = tabs(depth) + "{BlockExpr ";
-        for (const auto expr : stmts){
-            str += "\n" + expr->str(depth+1);
+        for (const auto expr : stmts) {
+            str += "\n" + expr->vstr(depth);
         }
         return str + "}";
+    }
+    std::string str(int depth) {
+        std::string str = tabs(depth) + "{";
+        std::string joinstr = "\n";//depth >= 1 ? "\n" : " ";
+        for (const auto expr : stmts) {
+            if (expr->str(depth) != "") {
+                str += joinstr + expr->str(depth+1) + ";";
+            }
+        }
+        return str + joinstr + tabs(depth) + "}";
     }
     std::vector<Expr*> stmts;
 };
@@ -411,12 +457,19 @@ struct ForExpr : Expr {
     ForExpr() = delete;
     ForExpr(Expr* loop_var, Expr* range_expr, Expr* loop_body)
         : loop_var(loop_var), range_expr(range_expr), loop_body(loop_body) {}
-    std::string str(int depth) {
+    std::string vstr(int depth) {
         std::string str = tabs(depth) + "{ForExpr ";
-        str += "\n" + loop_var->str(depth+1);
-        str += "\n" + range_expr->str(depth+1);
-        str += "\n" + loop_body->str(depth+1);
+        str += "\n" + loop_var->vstr(depth + 1);
+        str += "\n" + range_expr->vstr(depth + 1) + " ";
+        str += "\n" + loop_body->vstr(depth + 1);
         return str + "}";
+    }
+    std::string str(int depth) {
+        std::string str = tabs(depth) + "for ";
+        str += loop_var->str();
+        str += " : " + range_expr->str() + "\n";
+        str += loop_body->str(depth + 1);
+        return str;
     }
 
     Expr* loop_var;
@@ -469,15 +522,15 @@ struct Parser {
             return new EmptyExpr;
         auto prefix_tok = *tokit;
         auto token_pos = getTokenPos();
-        printf("CALL prefix %s:%d\n", tokit->str.c_str(),token_pos);
+        printf("CALL prefix %s:%d\n", tokit->str.c_str(), token_pos);
         Expr* expr = getPrefixFunc(tokit->type)(*this);
 
         while (precedence < getInfixPrecedence()) {
-            printf("CALL infix %s:%d\n", tokit->str.c_str(),getTokenPos());
+            printf("CALL infix %s:%d\n", tokit->str.c_str(), getTokenPos());
             expr = getInfixFunc(tokit->type)(*this, expr);
         }
-        printf("END prefix %s:%d\n", prefix_tok.str.c_str(),token_pos);
-        
+        printf("END prefix %s:%d\n", prefix_tok.str.c_str(), token_pos);
+
         return expr;
     }
 
@@ -485,7 +538,7 @@ struct Parser {
         std::vector<Expr*> statements;
         while (not endoftokens() and precedence < getPrefixPrecedence()) {
             // printf("\nparsing statement at %s on LINE %d POS %d\n",
-            //       token_to_str[tokit->type],
+            //       token_to_typestr[tokit->type],
             //       tokit->lineno,
             //       tokit->linepos);
 
@@ -626,12 +679,14 @@ struct Parser {
     }
 
     static Expr* prefixboom(Parser& parser) {
-        fprintf(stderr, RED "prefixFunc for token type %s unimplemented.\n" RESET, token_to_str[parser.tokit->type]);
+        fprintf(stderr,
+                RED "prefixFunc for token type %s unimplemented.\n" RESET,
+                token_to_typestr[parser.tokit->type]);
         exit(1);
         return new Expr();
     }
     static Expr* infixboom(Parser& parser, Expr*) {
-        fprintf(stderr, RED "infixFunc for token type %s unimplemented.\n" RESET, token_to_str[parser.tokit->type]);
+        fprintf(stderr, RED "infixFunc for token type %s unimplemented.\n" RESET, token_to_typestr[parser.tokit->type]);
         exit(1);
         return new Expr();
     }
@@ -741,7 +796,7 @@ void run_file(char* filepath, bool dump_source) {
     auto statements = parser.ParseStatements();
     printDiv("Parser Output");
     for (auto& stmt : statements) {
-        stmt->print();
+        stmt->print(0,true);
     }
 
     printDiv("Cleanup");
@@ -752,7 +807,7 @@ void run_prompt() { printf("prompt goes here\n"); }
 int main(int argc, char** argv) {
 
     setvbuf(stdout, NULL, _IONBF, 0);
-    
+
     if (argc == 2) {
         run_file(argv[1], false);
     } else if (argc == 1) {
