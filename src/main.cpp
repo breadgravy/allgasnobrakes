@@ -317,7 +317,7 @@ Expr::~Expr() {}
 /////////////////////////////////////////////////////////////////////////
 
 struct EmptyExpr : Expr {
-    std::string str(int depth) { return "(EMPTY)"; }
+    std::string str(int depth) { return tabs(depth) + "(EMPTY)"; }
 };
 struct NameExpr : Expr {
     NameExpr(std::string name) : name(std::move(name)) {}
@@ -387,7 +387,7 @@ struct CommaListExpr : Expr {
     std::string str(int depth) {
         std::string str = tabs(depth) + "(CommaList \n";
         for (const auto expr : exprs){
-            expr->str(depth+1) + "\n";
+            str += expr->str(depth+1) + "\n";
         }
         return str + ")";
     }
@@ -412,10 +412,10 @@ struct ForExpr : Expr {
     ForExpr(Expr* loop_var, Expr* range_expr, Expr* loop_body)
         : loop_var(loop_var), range_expr(range_expr), loop_body(loop_body) {}
     std::string str(int depth) {
-        std::string str = tabs(depth) + "{ForExpr \n";
-        str += loop_var->str(depth+1) + "\n";
-        str += range_expr->str(depth+1) + "\n";
-        str += loop_body->str(depth+1) + "\n";
+        std::string str = tabs(depth) + "{ForExpr ";
+        str += "\n" + loop_var->str(depth+1);
+        str += "\n" + range_expr->str(depth+1);
+        str += "\n" + loop_body->str(depth+1);
         return str + "}";
     }
 
@@ -438,14 +438,13 @@ struct Parser {
         tokit = _tokens.begin();
 
         initPrefixTable(_prefix_func_table);
-        _prefix_func_table[LEFT_BRACE] = std::make_pair(&Parser::parseBlock, 0);
-        _prefix_func_table[LEFT_PAREN] = std::make_pair(&Parser::parseGrouping, 0);
-        _prefix_func_table[RET] = std::make_pair(&Parser::parseReturn, 0);
+        _prefix_func_table[LEFT_BRACE] = std::make_pair(&Parser::parseBlock, 1);
+        _prefix_func_table[LEFT_PAREN] = std::make_pair(&Parser::parseGrouping, 1);
+        _prefix_func_table[RET] = std::make_pair(&Parser::parseReturn, 1);
         _prefix_func_table[ID] = std::make_pair(&Parser::parseID, 5);
         _prefix_func_table[NUM] = std::make_pair(&Parser::parseNum, 5);
         _prefix_func_table[BANG] = std::make_pair(&Parser::parseUnaryOp, 30);
         _prefix_func_table[FOR] = std::make_pair(&Parser::parseFor, 100);
-        _prefix_func_table[RIGHT_BRACE] = std::make_pair(&Parser::parseBlock, -77);
 
         initInfixTable(_infix_func_table);
         _infix_func_table[EQUALS] = std::make_pair(&Parser::parseBinaryOp, 10);
@@ -462,42 +461,28 @@ struct Parser {
         _infix_func_table[BANG] = std::make_pair(&Parser::parseBinaryOp, 80);
         _infix_func_table[LEFT_PAREN] = std::make_pair(&Parser::parseCall, 100);
         _infix_func_table[LEFT_BRACKET] = std::make_pair(&Parser::parseSubscript, 100);
-        // assume that finding these tokens in infix context implies an expression boundary
-        _infix_func_table[ID] = std::make_pair(&Parser::infixboom, -77);
-        _infix_func_table[NUM] = std::make_pair(&Parser::infixboom, -77);
-        _infix_func_table[FOR] = std::make_pair(&Parser::infixboom, -77);
-        _infix_func_table[IF] = std::make_pair(&Parser::infixboom, -77);
-        _infix_func_table[RET] = std::make_pair(&Parser::infixboom, -77);
-        _infix_func_table[SEMICOLON] = std::make_pair(&Parser::infixboom, -77);
-        // if seen, should always stop parsing at RIGHT_PAREN, RIGHT_BRACKET
-        _infix_func_table[RIGHT_PAREN] = std::make_pair(&Parser::infixboom, -777);
-        _infix_func_table[RIGHT_BRACKET] = std::make_pair(&Parser::infixboom, -777);
-        // BRACE should not ever be parsed as infix
-        _infix_func_table[LEFT_BRACE] = std::make_pair(&Parser::infixboom, -777);
-        _infix_func_table[RIGHT_BRACE] = std::make_pair(&Parser::infixboom, -777);
     }
 
     // core Pratt parsing routine
     Expr* ParseExpr(int precedence = 0) {
         if (endoftokens())
             return new EmptyExpr;
-        auto prefix_type = tokit->type;
+        auto prefix_tok = *tokit;
         auto token_pos = getTokenPos();
-        printf("calling prefix fn for %dth tok %s\n", token_pos, token_to_str[prefix_type]);
-        Expr* expr = getPrefixFunc(prefix_type)(*this);
+        printf("CALL prefix %s:%d\n", tokit->str.c_str(),token_pos);
+        Expr* expr = getPrefixFunc(tokit->type)(*this);
 
         while (precedence < getInfixPrecedence()) {
-            printf("calling infix fn for %dth tok %s\n", getTokenPos(), token_to_str[tokit->type]);
+            printf("CALL infix %s:%d\n", tokit->str.c_str(),getTokenPos());
             expr = getInfixFunc(tokit->type)(*this, expr);
         }
-        printf("ending prefix parse for %dth tok %s\n", token_pos, token_to_str[prefix_type]);
-
+        printf("END prefix %s:%d\n", prefix_tok.str.c_str(),token_pos);
+        
         return expr;
     }
 
     std::vector<Expr*> ParseStatements(int precedence = 0) {
         std::vector<Expr*> statements;
-        // use these to check for forward progress
         while (not endoftokens() and precedence < getPrefixPrecedence()) {
             // printf("\nparsing statement at %s on LINE %d POS %d\n",
             //       token_to_str[tokit->type],
@@ -505,6 +490,7 @@ struct Parser {
             //       tokit->linepos);
 
             auto expr = ParseExpr();
+            printf(YELLOW "%s\n" RESET, expr->str().c_str());
             statements.push_back(expr);
 
             // detect erorrs with statement termination
@@ -520,9 +506,11 @@ struct Parser {
             } else if (currtype() == SEMICOLON) {
                 consume(); // get rid of semicolon
             } else if (lasttype() == RIGHT_BRACE) {
-                // fprintf(stderr, RED "accepting right brace as closing statement \n" RESET);
+                fprintf(stderr, RED "accepting right brace as closing statement \n" RESET);
                 // accept a right brace as implictly terminating statement
             }
+            if (not endoftokens())
+                fprintf(stderr, GREEN "token starting next stmt is '%s'\n" RESET, currtoken().str.c_str());
         }
         return statements;
     }
@@ -553,16 +541,15 @@ struct Parser {
         return new ReturnExpr(expr);
     }
     static BlockExpr* parseBlock(Parser& parser) {
-        printf("parsing block stmt starting here: %s\n", token_to_str[parser.currtype()]);
         parser.consume(); // consume brace
         std::vector<Expr*> statements;
         if (parser.currtype() == RIGHT_BRACE) {
             // handle empty block
             statements = {new EmptyExpr};
         } else {
-            printf("\tparsing block stmt here: %s\n", token_to_str[parser.currtype()]);
+            printf(MAGENTA "start parsing block\n" RESET);
             statements = parser.ParseStatements();
-            printf("\tdone parsing block\n");
+            printf(MAGENTA "done parsing block\n" RESET);
         }
         auto last_token_type = parser.consume().type; // consume brace
         assert(last_token_type == RIGHT_BRACE && "expected closing right-brace when parsing block expr");
@@ -632,7 +619,7 @@ struct Parser {
         // add items to list as long as they are available
         while (parser.currtype() == COMMA) {
             parser.consume(); // consume comma
-            list_elems.push_back(parser.ParseExpr(parser.getInfixPrec(COMMA)));
+            list_elems.push_back(parser.ParseExpr(0));
         }
 
         return new CommaListExpr(list_elems);
@@ -659,12 +646,12 @@ struct Parser {
     void initPrefixTable(PrefixTable& functable) {
         functable.resize(NUM_TOKEN_TYPES);
         for (int i = 0; i < NUM_TOKEN_TYPES; i++) {
-            _prefix_func_table[i] = std::make_pair(&prefixboom, 100);
+            _prefix_func_table[i] = std::make_pair(&prefixboom, -100);
         }
     }
     void initInfixTable(InfixTable& functable) {
         functable.resize(NUM_TOKEN_TYPES);
-        std::fill(functable.begin(), functable.end(), std::make_pair(&infixboom, 100));
+        std::fill(functable.begin(), functable.end(), std::make_pair(&infixboom, -100));
     }
 
     // accessors for prefix and infix function tables
@@ -752,17 +739,20 @@ void run_file(char* filepath, bool dump_source) {
     printDiv("Parser");
     Parser parser(tokens);
     auto statements = parser.ParseStatements();
+    printDiv("Parser Output");
     for (auto& stmt : statements) {
         stmt->print();
     }
 
-    printDiv("cleanup");
+    printDiv("Cleanup");
 }
 
 void run_prompt() { printf("prompt goes here\n"); }
 
 int main(int argc, char** argv) {
 
+    setvbuf(stdout, NULL, _IONBF, 0);
+    
     if (argc == 2) {
         run_file(argv[1], false);
     } else if (argc == 1) {

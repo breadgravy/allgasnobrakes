@@ -4,7 +4,7 @@ OBJ_DIR=obj
 TEST_DIR=test
 TEST_INPUT_DIR=test/input/
 CC=clang++
-CC_FLAG= -Wall -g --std=c++17
+CC_FLAG= -Wall --std=c++17
 
 # first convert all .c extension to .cpp, then everything into .o
 _TMP = $(patsubst $(SRC_DIR)/%.cpp, $(SRC_DIR)/%.cpp,$(wildcard $(SRC_DIR)/*.c*))
