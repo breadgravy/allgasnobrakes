@@ -33,7 +33,6 @@ ErrCode run_file(char* filepath, bool dump_source) {
     Parser parser(tokens);
     auto statements = parser.ParseStatements();
 
-    starttime = getTime();
     printDiv("Parser Output");
     for (auto& stmt : statements) {
         stmt->print(0, true);

@@ -11,9 +11,9 @@
 #include <vector>
 
 #include "cfg.hpp"
-#include "re.hpp"
 #include "color.hpp"
 #include "err.hpp"
+#include "re.hpp"
 #include "scan.hpp"
 
 /*
@@ -22,8 +22,8 @@
         infix
 
     infix and prefix  can exist for the same token type; this allows
-    differentiating between, for example, '(' as a grouping operator 
-    (prefix) and as a call operator (infix)  
+    differentiating between, for example, '(' as a grouping operator
+    (prefix) and as a call operator (infix)
 
     func    (       arg1, arg2)
      ^      ^       ^
@@ -49,8 +49,8 @@
         //
         next_prec = get_next_precedence()
         if (prior_prec < next_prec){
-            return expr; 
-        } 
+            return expr;
+        }
         else {
             while (prior_precedence < getPredence(nexttok)){
                 // next token must have a valid infix op defined, or prec would be 0!
@@ -117,7 +117,7 @@ struct UnaryOpExpr : Expr {
 struct BinaryOpExpr : Expr {
     BinaryOpExpr() = delete;
     BinaryOpExpr(Expr* left, TokenType type, Expr* right) : left(left), type(type), right(right) {}
-    std::string str(int depth) { return tabs(depth) + left->str() + " " + token_to_repr[type] + " " + right->str(); }
+    std::string str(int depth) { return tabs(depth) + "(" + left->str() + " " + token_to_repr[type] + " " + right->str() + ")" ; }
     Expr* left;
     TokenType type;
     Expr* right;
@@ -194,6 +194,22 @@ struct ForExpr : Expr {
     Expr* loop_body;
 };
 
+struct FnDefExpr : Expr {
+    FnDefExpr() = delete;
+    FnDefExpr(NameExpr* fn_name, Expr* args, Expr* body) : fn_name(fn_name), args(args), body(body) {}
+    std::string str(int depth) {
+        std::string str = tabs(depth) + "fn ";
+        str += fn_name->str(0);
+        str += "(" + args->str() + ")\n";
+        str += body->str(depth + 1);
+        return str;
+    }
+
+    NameExpr* fn_name;
+    Expr* args;
+    Expr* body;
+};
+
 // indexed by token type
 typedef int Prec;
 typedef std::vector<Token>::const_iterator TokIter;
@@ -215,6 +231,7 @@ struct Parser {
         _prefix_func_table[NUM] = std::make_pair(&Parser::parseNum, 5);
         _prefix_func_table[BANG] = std::make_pair(&Parser::parseUnaryOp, 30);
         _prefix_func_table[FOR] = std::make_pair(&Parser::parseFor, 100);
+        _prefix_func_table[FN] = std::make_pair(&Parser::parseFnDef, 100);
 
         initInfixTable(_infix_func_table);
         _infix_func_table[EQUALS] = std::make_pair(&Parser::parseBinaryOp, 10);
@@ -239,14 +256,17 @@ struct Parser {
             return new EmptyExpr;
         auto prefix_tok = *tokit;
         auto token_pos = getTokenPos();
-        if (parseVerbose) printf("CALL prefix %s:%d\n", tokit->str.c_str(), token_pos);
+        if (parseVerbose)
+            printf("CALL prefix %s:%d\n", tokit->str.c_str(), token_pos);
         Expr* expr = getPrefixFunc(tokit->type)(*this);
 
         while (precedence < getInfixPrecedence()) {
-            if (parseVerbose)  printf("CALL infix %s:%d\n", tokit->str.c_str(), getTokenPos());
+            if (parseVerbose)
+                printf("CALL infix %s:%d\n", tokit->str.c_str(), getTokenPos());
             expr = getInfixFunc(tokit->type)(*this, expr);
         }
-        if (parseVerbose) printf("END prefix %s:%d\n", prefix_tok.str.c_str(), token_pos);
+        if (parseVerbose)
+            printf("END prefix %s:%d\n", prefix_tok.str.c_str(), token_pos);
 
         return expr;
     }
@@ -275,11 +295,12 @@ struct Parser {
             } else if (currtype() == SEMICOLON) {
                 consume(); // get rid of semicolon
             } else if (lasttype() == RIGHT_BRACE) {
-                if(parseVerbose) fprintf(stderr, RED "accepting right brace as closing statement \n" RESET);
+                if (parseVerbose)
+                    fprintf(stderr, RED "accepting right brace as closing statement \n" RESET);
                 // accept a right brace as implictly terminating statement
             }
             if (not endoftokens() and parseVerbose)
-               fprintf(stderr, GREEN "token starting next stmt is '%s'\n" RESET, currtoken().str.c_str());
+                fprintf(stderr, GREEN "token starting next stmt is '%s'\n" RESET, currtoken().str.c_str());
         }
         return statements;
     }
@@ -316,9 +337,11 @@ struct Parser {
             // handle empty block
             statements = {new EmptyExpr};
         } else {
-            if(parseVerbose) printf(MAGENTA "start parsing block\n" RESET);
+            if (parseVerbose)
+                printf(MAGENTA "start parsing block\n" RESET);
             statements = parser.ParseStatements();
-            if(parseVerbose) printf(MAGENTA "done parsing block\n" RESET);
+            if (parseVerbose)
+                printf(MAGENTA "done parsing block\n" RESET);
         }
         auto last_token_type = parser.consume().type; // consume brace
         assert(last_token_type == RIGHT_BRACE && "expected closing right-brace when parsing block expr");
@@ -363,6 +386,41 @@ struct Parser {
         TokenType right_paren = parser.consume().type; // consume paren
         assert(right_paren && "expected paren when parsing call expr");
         return new CallExpr(fn_name, args);
+    }
+
+    static FnDefExpr* parseFnDef(Parser& parser) {
+        // FORM : fn id (args) {blockexpr}
+
+        // parse fn
+        assert(parser.currtype() == FN);
+        parser.consume();
+
+        // parse id
+        assert(parser.currtype() == ID);
+        auto fn_name = new NameExpr(parser.currtoken().str);
+        parser.consume();
+
+        // parse LEFT_PAREN
+        assert(parser.consume().type == LEFT_PAREN);
+
+        // parse args
+        Expr* args;
+        if (parser.currtype() != RIGHT_PAREN) {
+            // use low precedence for rhs; call should bind tightly on LHS but
+            // weakly on RHS
+            args = parser.ParseExpr(0);
+        } else {
+            args = new EmptyExpr;
+        }
+
+        // parse RIGHT_PAREN
+        assert(parser.consume().type && "expected right-paren when parsing FnDefExpr");
+
+        // parse body
+        assert(parser.currtype() && "expected BlockExpr starting with '{' as body of function");
+        Expr* body = parser.ParseExpr(0);
+
+        return new FnDefExpr(fn_name, args, body);
     }
 
     static SubscriptExpr* parseSubscript(Parser& parser, Expr* array_name) {
@@ -456,4 +514,3 @@ struct Parser {
     std::vector<Token> _tokens;
     TokIter tokit;
 };
-
