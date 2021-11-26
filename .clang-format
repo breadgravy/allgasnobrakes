@@ -10,7 +10,7 @@ PointerAlignment: Left
 BinPackArguments: false
 BinPackParameters: false
 
-ContinuationIndentWidth: 120
-ColumnLimit: 120
+ContinuationIndentWidth: 100
+ColumnLimit: 100
 
 AllowAllArgumentsOnNextLine: true

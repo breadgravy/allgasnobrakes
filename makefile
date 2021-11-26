@@ -4,7 +4,21 @@ OBJ_DIR=obj
 TEST_DIR=test
 TEST_INPUT_DIR=test/input/
 CC=clang++
-CC_FLAG= -Wall --std=c++17 
+CC_FLAG= -Wall --std=c++14
+
+# set optional flags
+
+ifdef OPT
+OPTIONAL_FLAGS+=-O3
+endif
+
+ifdef SYM
+OPTIONAL_FLAGS+=-g
+endif
+
+CC_FLAG+= $(OPTIONAL_FLAGS)
+
+
 
 # first convert all .c extension to .cpp, then everything into .o
 _TMP = $(patsubst $(SRC_DIR)/%.cpp, $(SRC_DIR)/%.cpp,$(wildcard $(SRC_DIR)/*.c*))
@@ -33,11 +47,11 @@ debug:
 exe: lib
 	$(info )	
 	$(info --------------------------------------------------------------------------------)
-	$(info Compiling exe bin/test ... )	
-	@time -f "Compiled exe in %e seconds" $(CC) $(CC_FLAG) $(SRC_DIR)/main.cpp $(OBJN) -o $(BIN_DIR)/$(EXE)
+	$(info Compiling [$(OPTIONAL_FLAGS)] exe bin/test ... )	
+	@time -f "Compiled [$(OPTIONAL_FLAGS)] exe in %e seconds" $(CC) $(CC_FLAG) $(SRC_DIR)/main.cpp $(OBJN) -o $(BIN_DIR)/$(EXE)
 
 $(OBJN): $(OBJ_DIR)/%.o:$(SRC_DIR)/%.cpp 
-	@time -f "Compiled $< in %e seconds" $(CC) $(FLAGS) -MP -MMD -c $< -o $@
+	@time -f "Compiled [$(OPTIONAL_FLAGS)] $< in %e seconds" $(CC) $(FLAGS) -MP -MMD -c $< -o $@
 	@rm -f $@.comptime
 
 #-- MISC TARGETS ---------------------------------------------------------#

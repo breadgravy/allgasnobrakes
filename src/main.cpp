@@ -39,6 +39,9 @@ ErrCode run_file(char* filepath, bool dump_source) {
     }
 
     printDiv("Cleanup");
+    for (auto& stmt : statements) {
+        delete(stmt);
+    }
 
     printf(YELLOW "took %.3g ms\n" RESET,timeSince(starttime));
     return SUCCESS;
