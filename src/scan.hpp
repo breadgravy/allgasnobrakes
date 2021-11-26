@@ -132,6 +132,7 @@ struct Scanner {
         KW_MATCH(CMP, cmp)
         KW_MATCH(FN, fn)
         KW_MATCH(FOR,for)
+        KW_MATCH(VAR,var)
         KW_MATCH(IF, if)
         KW_MATCH(OR, or)
         KW_MATCH(RET, ret)

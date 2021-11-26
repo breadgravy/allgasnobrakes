@@ -1,6 +1,7 @@
 fn sqrt (s,a,b,c){
     # do stuff here
     if a - b {
+        var b = 10;
         ret b * c;
     } 
     else {

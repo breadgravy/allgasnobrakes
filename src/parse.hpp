@@ -140,6 +140,13 @@ struct ReturnExpr : Expr {
     Expr* value;
 };
 
+struct VarExpr : Expr {
+    VarExpr() = delete;
+    VarExpr(Expr* expr) : expr(expr) {}
+    std::string str(int depth) { return tabs(depth) + MAGENTA "var " RESET + expr->str(); }
+    Expr* expr;
+};
+
 struct SubscriptExpr : Expr {
     SubscriptExpr() = delete;
     SubscriptExpr(Expr* array_name, Expr* index) : array_name(array_name), index(index) {}
@@ -256,6 +263,7 @@ struct Parser {
         _prefix_func_table[FOR] = std::make_pair(&Parser::parseFor, 100);
         _prefix_func_table[FN] = std::make_pair(&Parser::parseFnDef, 100);
         _prefix_func_table[IF] = std::make_pair(&Parser::parseIf, 100);
+        _prefix_func_table[VAR] = std::make_pair(&Parser::parseVar, 100);
 
         initInfixTable(_infix_func_table);
         _infix_func_table[EQUALS] = std::make_pair(&Parser::parseBinaryOp, 10);
@@ -332,8 +340,14 @@ struct Parser {
     ///////////////////////////////////////////////////////////////////////////
     // prefix functions
     // NOTE: parsing functions must consume what they use!
-    static NameExpr* parseID(Parser& parser) { return new NameExpr((parser.consume()).str); }
-    static NumExpr* parseNum(Parser& parser) { return new NumExpr(atof(parser.consume().str.c_str())); }
+    static NameExpr* parseID(Parser& parser) { 
+        assert(parser.currtype() == ID);
+        return new NameExpr((parser.consume()).str); 
+    }
+    static NumExpr* parseNum(Parser& parser) { 
+        assert(parser.currtype() == NUM);
+        return new NumExpr(atof(parser.consume().str.c_str())); 
+    }
     static UnaryOpExpr* parseUnaryOp(Parser& parser) {
         TokenType type = parser.consume().type;
         auto right = parser.ParseExpr(parser.getPrefixPrec(type));
@@ -354,6 +368,11 @@ struct Parser {
         parser.consume();
         auto expr = parser.ParseExpr(parser.getPrefixPrec(RET));
         return new ReturnExpr(expr);
+    }
+    static VarExpr* parseVar(Parser& parser) {
+        parser.consume();
+        auto expr = parser.ParseExpr(0);
+        return new VarExpr(expr);
     }
     static BlockExpr* parseBlock(Parser& parser) {
         parser.consume(); // consume brace
@@ -389,12 +408,10 @@ struct Parser {
     static IfExpr* parseIf(Parser& parser) {
 
         // consume IF
-        printf(RED "IF\n" RESET);
         assert(parser.currtype() == IF);
         parser.consume();
 
         // get if cond
-        printf(RED "IF COND\n" RESET);
         auto if_cond = parser.ParseExpr(0);
         auto if_body = parseBlock(parser);
         
