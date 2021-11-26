@@ -128,7 +128,6 @@ struct Scanner {
         if (false) {
         }
         KW_MATCH(AND, and)
-        KW_MATCH(ELIF, elif)
         KW_MATCH(ELSE, else)
         KW_MATCH(CMP, cmp)
         KW_MATCH(FN, fn)

@@ -80,7 +80,7 @@ struct Expr {
     std::string tabs(int depth) {
         std::string tabs;
         for (int i = 0; i < depth; i++)
-            tabs.append("  ");
+            tabs.append("    ");
         return tabs;
     }
 };
@@ -91,7 +91,7 @@ Expr::~Expr() {}
 /////////////////////////////////////////////////////////////////////////
 
 struct EmptyExpr : Expr {
-    std::string str(int depth) { return tabs(depth); }
+    std::string str(int depth) { return tabs(depth) + "(EMPTY)"; }
 };
 struct NameExpr : Expr {
     NameExpr(std::string name) : name(std::move(name)) {}
@@ -117,7 +117,9 @@ struct UnaryOpExpr : Expr {
 struct BinaryOpExpr : Expr {
     BinaryOpExpr() = delete;
     BinaryOpExpr(Expr* left, TokenType type, Expr* right) : left(left), type(type), right(right) {}
-    std::string str(int depth) { return tabs(depth) + "(" + left->str() + " " + token_to_repr[type] + " " + right->str() + ")" ; }
+    std::string str(int depth) {
+        return tabs(depth) + "(" + left->str() + " " + token_to_repr[type] + " " + right->str() + ")";
+    }
     Expr* left;
     TokenType type;
     Expr* right;
@@ -126,7 +128,7 @@ struct BinaryOpExpr : Expr {
 struct CallExpr : Expr {
     CallExpr() = delete;
     CallExpr(NameExpr* fn_name, Expr* args) : fn_name(fn_name), args(args) {}
-    std::string str(int depth) { return tabs(depth) + fn_name->name + "(" + args->str() + ")"; }
+    std::string str(int depth) { return tabs(depth) + BLUE + fn_name->name + RESET + "(" + args->str() + ")"; }
     NameExpr* fn_name;
     Expr* args;
 };
@@ -134,7 +136,7 @@ struct CallExpr : Expr {
 struct ReturnExpr : Expr {
     ReturnExpr() = delete;
     ReturnExpr(Expr* value) : value(value) {}
-    std::string str(int depth) { return tabs(depth) + "ret " + value->str(); }
+    std::string str(int depth) { return tabs(depth) + MAGENTA "ret " RESET + value->str(); }
     Expr* value;
 };
 
@@ -166,7 +168,8 @@ struct BlockExpr : Expr {
     BlockExpr(std::vector<Expr*> stmts) : stmts(stmts) {}
     std::string str(int depth) {
         std::string str = tabs(depth) + "{";
-        std::string joinstr = "\n"; // depth >= 1 ? "\n" : " ";
+        std::string joinstr = "\n";
+        if (not stmts.size()) { return str + "}"; }
         for (const auto expr : stmts) {
             if (expr->str(depth) != "") {
                 str += joinstr + expr->str(depth + 1) + ";";
@@ -182,10 +185,10 @@ struct ForExpr : Expr {
     ForExpr(Expr* loop_var, Expr* range_expr, Expr* loop_body)
         : loop_var(loop_var), range_expr(range_expr), loop_body(loop_body) {}
     std::string str(int depth) {
-        std::string str = tabs(depth) + "for ";
+        std::string str = tabs(depth) + MAGENTA "for " RESET;
         str += loop_var->str();
         str += " : " + range_expr->str() + "\n";
-        str += loop_body->str(depth + 1);
+        str += loop_body->str(depth);
         return str;
     }
 
@@ -198,16 +201,36 @@ struct FnDefExpr : Expr {
     FnDefExpr() = delete;
     FnDefExpr(NameExpr* fn_name, Expr* args, Expr* body) : fn_name(fn_name), args(args), body(body) {}
     std::string str(int depth) {
-        std::string str = tabs(depth) + "fn ";
-        str += fn_name->str(0);
+        std::string str = tabs(depth) + MAGENTA "fn " RESET;
+        str += YELLOW + fn_name->str(0) + RESET;
         str += "(" + args->str() + ")\n";
-        str += body->str(depth + 1);
+        str += body->str(depth);
         return str;
     }
 
     NameExpr* fn_name;
     Expr* args;
     Expr* body;
+};
+
+struct IfExpr : Expr {
+    IfExpr() = delete;
+    IfExpr(bool hasElse, Expr* if_cond, Expr* if_body, Expr* else_body)
+        : has_else(hasElse), if_cond(if_cond), if_body(if_body), else_body(else_body) {}
+    std::string str(int depth) {
+        std::string str = tabs(depth) + MAGENTA "if " RESET;
+        str += if_cond->str() + "\n";
+        str += if_body->str(depth);
+        if (has_else){
+            str += "\n" + tabs(depth) + "else\n" + else_body->str(depth);
+        }
+        return str;
+    }
+
+    bool has_else;
+    Expr* if_cond;
+    Expr* if_body;
+    Expr* else_body;
 };
 
 // indexed by token type
@@ -232,6 +255,7 @@ struct Parser {
         _prefix_func_table[BANG] = std::make_pair(&Parser::parseUnaryOp, 30);
         _prefix_func_table[FOR] = std::make_pair(&Parser::parseFor, 100);
         _prefix_func_table[FN] = std::make_pair(&Parser::parseFnDef, 100);
+        _prefix_func_table[IF] = std::make_pair(&Parser::parseIf, 100);
 
         initInfixTable(_infix_func_table);
         _infix_func_table[EQUALS] = std::make_pair(&Parser::parseBinaryOp, 10);
@@ -305,6 +329,7 @@ struct Parser {
         return statements;
     }
 
+    ///////////////////////////////////////////////////////////////////////////
     // prefix functions
     // NOTE: parsing functions must consume what they use!
     static NameExpr* parseID(Parser& parser) { return new NameExpr((parser.consume()).str); }
@@ -335,7 +360,7 @@ struct Parser {
         std::vector<Expr*> statements;
         if (parser.currtype() == RIGHT_BRACE) {
             // handle empty block
-            statements = {new EmptyExpr};
+            statements = {};
         } else {
             if (parseVerbose)
                 printf(MAGENTA "start parsing block\n" RESET);
@@ -361,7 +386,33 @@ struct Parser {
 
         return new ForExpr(loop_var, range_expr, loop_body);
     }
+    static IfExpr* parseIf(Parser& parser) {
 
+        // consume IF
+        printf(RED "IF\n" RESET);
+        assert(parser.currtype() == IF);
+        parser.consume();
+
+        // get if cond
+        printf(RED "IF COND\n" RESET);
+        auto if_cond = parser.ParseExpr(0);
+        auto if_body = parseBlock(parser);
+        
+        // parse else clause if it exists
+        bool has_else = false;
+        Expr* else_body = new EmptyExpr(); 
+        if (parser.currtype() == ELSE) {
+            // consume else
+            parser.consume();
+            // expect this to be a BlockExpr
+            else_body = parseBlock(parser);
+            has_else = true;
+        } 
+
+        return new IfExpr(has_else,if_cond,if_body,else_body);
+    }
+
+    ///////////////////////////////////////////////////////////////////////////
     // infix functions
     // NOTE: parsing functions must consume what they use!
     static BinaryOpExpr* parseBinaryOp(Parser& parser, Expr* left) {

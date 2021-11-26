@@ -1,33 +1,32 @@
-DECL_TOKEN_TYPE(ID,"")             // DONE
-DECL_TOKEN_TYPE(NUM,"")            // DONE
+DECL_TOKEN_TYPE(ID,"")              // DONE
+DECL_TOKEN_TYPE(NUM,"")             // DONE
 
-DECL_TOKEN_TYPE(AND,"and")         // DONE
-DECL_TOKEN_TYPE(OR,"or")           // DONE
-DECL_TOKEN_TYPE(PLUS,"+")          // DONE
-DECL_TOKEN_TYPE(MINUS,"-")         // DONE
-DECL_TOKEN_TYPE(DIV,"/")           // DONE
-DECL_TOKEN_TYPE(MULT,"*")          // DONE
-DECL_TOKEN_TYPE(EQUALS,"=")        // DONE
-DECL_TOKEN_TYPE(BANG,"!")          // DONE
-DECL_TOKEN_TYPE(COMMA,",")         // DONE
+DECL_TOKEN_TYPE(AND,"and")          // DONE
+DECL_TOKEN_TYPE(OR,"or")            // DONE
+DECL_TOKEN_TYPE(PLUS,"+")           // DONE
+DECL_TOKEN_TYPE(MINUS,"-")          // DONE
+DECL_TOKEN_TYPE(DIV,"/")            // DONE
+DECL_TOKEN_TYPE(MULT,"*")           // DONE
+DECL_TOKEN_TYPE(EQUALS,"=")         // DONE
+DECL_TOKEN_TYPE(BANG,"!")           // DONE
+DECL_TOKEN_TYPE(COMMA,",")          // DONE
 
-DECL_TOKEN_TYPE(FN,"fn")           // DONE
-DECL_TOKEN_TYPE(IF,"if")
-DECL_TOKEN_TYPE(ELIF,"elif")
-DECL_TOKEN_TYPE(ELSE,"else")
-DECL_TOKEN_TYPE(FOR,"for")         // DONE
-DECL_TOKEN_TYPE(RET,"ret")         // DONE
-DECL_TOKEN_TYPE(TO,"to")           // DONE
-DECL_TOKEN_TYPE(CMP,"cmp")         // DONE
-DECL_TOKEN_TYPE(COLON,":")         // DONE
+DECL_TOKEN_TYPE(FN,"fn")            // DONE
+DECL_TOKEN_TYPE(IF,"if")            // DONE
+DECL_TOKEN_TYPE(ELSE,"else")        // DONE
+DECL_TOKEN_TYPE(FOR,"for")          // DONE
+DECL_TOKEN_TYPE(RET,"ret")          // DONE
+DECL_TOKEN_TYPE(TO,"to")            // DONE
+DECL_TOKEN_TYPE(CMP,"cmp")          // DONE
+DECL_TOKEN_TYPE(COLON,":")          // DONE
 
-DECL_TOKEN_TYPE(SEMICOLON,"")      // DONE
-DECL_TOKEN_TYPE(LEFT_PAREN,"(")    // DONE
-DECL_TOKEN_TYPE(RIGHT_PAREN,")")   // DONE
-DECL_TOKEN_TYPE(LEFT_BRACE,"{")    // DONE
-DECL_TOKEN_TYPE(RIGHT_BRACE,"}")   // DONE
-DECL_TOKEN_TYPE(LEFT_BRACKET,"[")  // DONE
-DECL_TOKEN_TYPE(RIGHT_BRACKET,"]") // DONE
+DECL_TOKEN_TYPE(SEMICOLON,"")       // DONE
+DECL_TOKEN_TYPE(LEFT_PAREN,"(")     // DONE
+DECL_TOKEN_TYPE(RIGHT_PAREN,")")    // DONE
+DECL_TOKEN_TYPE(LEFT_BRACE,"{")     // DONE
+DECL_TOKEN_TYPE(RIGHT_BRACE,"}")    // DONE
+DECL_TOKEN_TYPE(LEFT_BRACKET,"[")   // DONE
+DECL_TOKEN_TYPE(RIGHT_BRACKET,"]")  // DONE
 
 // not implemented
 DECL_TOKEN_TYPE(INVALID,"")

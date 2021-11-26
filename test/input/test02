@@ -1,7 +1,15 @@
 fn sqrt (s,a,b,c){
     # do stuff here
+    if a - b {
+        ret b * c;
+    } 
+    else {
+       # ret a;
+    }
 }
 
 fn heron (s,a,b,c){
    ret sqrt(s * (s - a) * (s - b) * (s - c));
 }
+
+fn nop(){};
