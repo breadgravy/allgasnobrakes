@@ -22,6 +22,7 @@ struct Expr {
     // pretty print expression at requested indentation
     virtual std::string str(int depth = 0) { return "(UNIMPLEMENTED)"; }
     virtual bool isNameExpr() { return false; }
+    virtual void visit() { printf("\nvisited \n%s",str().c_str()); }
     virtual ~Expr();
     std::string tabs(int depth) {
         std::string tabs;

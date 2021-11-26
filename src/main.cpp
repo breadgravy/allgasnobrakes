@@ -7,9 +7,10 @@
 #include "color.hpp"
 #include "err.hpp"
 #include "fs.hpp"
+#include "time.hpp"
 #include "scan.hpp"
 #include "parse.hpp"
-#include "time.hpp"
+#include "semantic_analysis.hpp"
 
 ErrCode run_file(char* filepath, bool dump_source) {
 
@@ -31,12 +32,16 @@ ErrCode run_file(char* filepath, bool dump_source) {
 
     printDiv("Parser");
     Parser parser(tokens);
-    auto statements = parser.ParseStatements();
+    std::vector<Expr*> statements = parser.ParseStatements();
 
     printDiv("Parser Output");
     for (auto& stmt : statements) {
         stmt->print(0, true);
     }
+
+    printDiv("Semantic Analysis");
+    SemanticAnalysis sa(statements);
+    sa.analyse();
 
     printDiv("Cleanup");
     for (auto& stmt : statements) {

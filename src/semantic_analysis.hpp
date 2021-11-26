@@ -17,7 +17,14 @@
 #include "scan.hpp"
 #include "expr.hpp"
 
-//class SemanticAnalysis {
-//    SemanticAnalysis()
-//
-//};
+struct SemanticAnalysis {
+    SemanticAnalysis(std::vector<Expr*>& stmts): stmts(stmts) { }
+
+    void analyse(){
+        //for (const auto stmtexpr : stmts){
+        //    stmtexpr->visit();
+        //}
+    }
+
+    std::vector<Expr*>& stmts;
+};

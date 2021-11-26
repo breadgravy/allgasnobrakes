@@ -16,6 +16,7 @@
 #include "re.hpp"
 #include "scan.hpp"
 #include "expr.hpp"
+#include "time.hpp"
 
 // indexed by token type
 typedef int Prec;
