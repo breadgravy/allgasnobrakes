@@ -135,6 +135,7 @@ struct Scanner {
         KW_MATCH(VAR,var)
         KW_MATCH(IF, if)
         KW_MATCH(OR, or)
+        KW_MATCH(PRINT, print)
         KW_MATCH(RET, ret)
         KW_MATCH(TO, to)
         else {

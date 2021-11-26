@@ -11,8 +11,9 @@ DECL_TOKEN_TYPE(EQUALS,"=")         // DONE
 DECL_TOKEN_TYPE(BANG,"!")           // DONE
 DECL_TOKEN_TYPE(COMMA,",")          // DONE
 
+DECL_TOKEN_TYPE(PRINT,"print")      // DONE
 DECL_TOKEN_TYPE(FN,"fn")            // DONE
-DECL_TOKEN_TYPE(VAR,"var")           // DONE
+DECL_TOKEN_TYPE(VAR,"var")          // DONE
 DECL_TOKEN_TYPE(IF,"if")            // DONE
 DECL_TOKEN_TYPE(ELSE,"else")        // DONE
 DECL_TOKEN_TYPE(FOR,"for")          // DONE

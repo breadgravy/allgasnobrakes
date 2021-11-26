@@ -240,6 +240,15 @@ struct IfExpr : Expr {
     Expr* else_body;
 };
 
+struct PrintExpr : Expr {
+    PrintExpr() = delete;
+    PrintExpr(Expr * value): value(value) {}
+    std::string str(int depth) {
+        return tabs(depth) + YELLOW "print " RESET + value->str();
+    }
+    Expr* value;
+};
+
 // indexed by token type
 typedef int Prec;
 typedef std::vector<Token>::const_iterator TokIter;
@@ -264,6 +273,7 @@ struct Parser {
         _prefix_func_table[FN] = std::make_pair(&Parser::parseFnDef, 100);
         _prefix_func_table[IF] = std::make_pair(&Parser::parseIf, 100);
         _prefix_func_table[VAR] = std::make_pair(&Parser::parseVar, 100);
+        _prefix_func_table[PRINT] = std::make_pair(&Parser::parsePrint, 100);
 
         initInfixTable(_infix_func_table);
         _infix_func_table[EQUALS] = std::make_pair(&Parser::parseBinaryOp, 10);
@@ -363,6 +373,10 @@ struct Parser {
         TokenType right_paren = parser.consume().type; // consume right paren
         assert(right_paren && "expected paren when parsing call expr");
         return expr;
+    }
+    static PrintExpr* parsePrint(Parser& parser) {
+        parser.consume();
+        return new PrintExpr(parser.ParseExpr(0));
     }
     static ReturnExpr* parseReturn(Parser& parser) {
         parser.consume();
