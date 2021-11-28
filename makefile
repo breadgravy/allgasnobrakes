@@ -4,7 +4,7 @@ OBJ_DIR=obj
 TEST_DIR=test
 TEST_INPUT_DIR=test/input/
 CC=clang++
-CC_FLAG= -Wall --std=c++14
+CC_FLAG= -Wall --std=c++17
 
 # set optional flags
 
@@ -58,6 +58,7 @@ $(OBJN): $(OBJ_DIR)/%.o:$(SRC_DIR)/%.cpp
 #-- MISC TARGETS ---------------------------------------------------------#
 
 show:
+	@echo CC CMD = $(CC) $(FLAGS) -MP -MMD -c
 	@echo OBJN = $(OBJN) 
 	@echo OBJ SIZE = `du -sh --exclude "*.d" obj/ | cut -f1 `
 	@echo BIN SIZE = `du -sh bin/test | cut -f1 `
