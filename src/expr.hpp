@@ -1,9 +1,24 @@
 #pragma once
 
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "scan.hpp"
+#include "util.hpp"
+#include "vm.hpp"
+
+const std::unordered_map<TokenType, OpCode> token_to_binop = {{PLUS, OP_ADD},
+                                                              {MINUS, OP_SUB},
+                                                              {MULT, OP_MULT},
+                                                              {DIV, OP_DIV},
+                                                              {OR, OP_OR},
+                                                              {AND, OP_AND},
+                                                              {CMP, OP_CMP}};
+
+const std::unordered_map<TokenType, OpCode> token_to_unaryop = {
+                                                              {MINUS, OP_NEG},
+                                                              {BANG,  OP_NOT}};
 
 /////////////////////////////////////////////////////////////////////////
 // Expression Types
@@ -12,7 +27,9 @@
 // fwd decl
 struct Parser;
 
-#define DEL_EXPR(expr) if (expr != nullptr) delete expr;
+#define DEL_EXPR(expr)                                                                             \
+    if (expr != nullptr)                                                                           \
+        delete expr;
 
 // Base Class
 struct Expr {
@@ -22,7 +39,7 @@ struct Expr {
     // pretty print expression at requested indentation
     virtual std::string str(int depth = 0) { return "(UNIMPLEMENTED)"; }
     virtual bool isNameExpr() { return false; }
-    virtual void visit() { printf("\nvisited \n%s",str().c_str()); }
+    virtual void codegen(Chunk& code) { ERR("codegen for expr '%s' is UNIMPLEMENTED.\n",str(0).c_str()); }
     virtual ~Expr();
     std::string tabs(int depth) {
         std::string tabs;
@@ -46,6 +63,7 @@ struct NameExpr : Expr {
 };
 struct NumExpr : Expr {
     NumExpr(double num) : num(num) {}
+    void codegen(Chunk& code) { code.addConstOp(num); }
     std::string str(int depth) {
         char buf[200];
         sprintf(buf, "%g", num);
@@ -56,10 +74,22 @@ struct NumExpr : Expr {
     double num;
 };
 struct UnaryOpExpr : Expr {
-    UnaryOpExpr(TokenType type, Expr* right) : type(type), right(right) {}
-    std::string str(int depth) { return token_to_repr[type] + right->str(); }
+    UnaryOpExpr(TokenType type, Expr* right) : type(type), right(right) {
+        assert(not right->isNameExpr());
+    }
+    void codegen(Chunk& code) {
+        right->codegen(code);
+        if (token_to_unaryop.count(type)) {
+            code.addOp(token_to_unaryop.at(type));
+        } else {
+            ERR("codegen: tokentype '%s' in expr '%s' not implemented as unary op",
+                token_to_typestr[type],
+                str(0).c_str());
+        }
+    }
+    std::string str(int depth) { return "(" + std::string(token_to_repr[type]) + right->str() + ")"; }
     ~UnaryOpExpr() { DEL_EXPR(right); }
-    
+
     TokenType type;
     Expr* right;
 };
@@ -70,7 +100,21 @@ struct BinaryOpExpr : Expr {
         return tabs(depth) + "(" + left->str() + " " + token_to_repr[type] + " " + right->str() +
                ")";
     }
-    ~BinaryOpExpr() { DEL_EXPR(left); DEL_EXPR(right); }
+    void codegen(Chunk& code) {
+        left->codegen(code);
+        right->codegen(code);
+        if (token_to_binop.count(type)) {
+            code.addOp(token_to_binop.at(type));
+        } else {
+            ERR("codegen: tokentype '%s' in expr '%s' not implemented as binary op",
+                token_to_typestr[type],
+                str(0).c_str());
+        }
+    }
+    ~BinaryOpExpr() {
+        DEL_EXPR(left);
+        DEL_EXPR(right);
+    }
 
     Expr* left;
     TokenType type;
@@ -83,7 +127,10 @@ struct CallExpr : Expr {
     std::string str(int depth) {
         return tabs(depth) + BLUE + fn_name->name + RESET + "(" + args->str() + ")";
     }
-    ~CallExpr() { DEL_EXPR(fn_name); DEL_EXPR(args); }
+    ~CallExpr() {
+        DEL_EXPR(fn_name);
+        DEL_EXPR(args);
+    }
 
     NameExpr* fn_name;
     Expr* args;
@@ -92,6 +139,7 @@ struct CallExpr : Expr {
 struct ReturnExpr : Expr {
     ReturnExpr() = delete;
     ReturnExpr(Expr* value) : value(value) {}
+    void codegen(Chunk& code) { code.addOp(OP_RET); }
     std::string str(int depth) { return tabs(depth) + MAGENTA "ret " RESET + value->str(); }
     ~ReturnExpr() { DEL_EXPR(value); }
 
@@ -113,7 +161,10 @@ struct SubscriptExpr : Expr {
     std::string str(int depth) {
         return tabs(depth) + array_name->str() + "[" + index->str() + "]";
     }
-    ~SubscriptExpr() { DEL_EXPR(index); DEL_EXPR(array_name); }
+    ~SubscriptExpr() {
+        DEL_EXPR(index);
+        DEL_EXPR(array_name);
+    }
 
     Expr* array_name;
     Expr* index;
@@ -122,6 +173,7 @@ struct SubscriptExpr : Expr {
 struct CommaListExpr : Expr {
     CommaListExpr() = delete;
     CommaListExpr(std::vector<Expr*> exprs) : exprs(exprs) {}
+    void codegen(Chunk& code) { ERR("CommaExpr '%s' has no codegen.",str(0).c_str()); }
     std::string str(int depth) {
         std::string str = tabs(depth);
         for (auto expr = exprs.begin(); expr != exprs.end(); expr++) {
@@ -131,7 +183,10 @@ struct CommaListExpr : Expr {
         }
         return str;
     }
-    ~CommaListExpr() { for (auto expr : exprs) DEL_EXPR(expr); }
+    ~CommaListExpr() {
+        for (auto expr : exprs)
+            DEL_EXPR(expr);
+    }
 
     std::vector<Expr*> exprs;
 };
@@ -152,7 +207,10 @@ struct BlockExpr : Expr {
         }
         return str + joinstr + tabs(depth) + "}";
     }
-    ~BlockExpr() { for (auto expr : stmts) DEL_EXPR(expr); }
+    ~BlockExpr() {
+        for (auto expr : stmts)
+            DEL_EXPR(expr);
+    }
 
     std::vector<Expr*> stmts;
 };
@@ -168,7 +226,11 @@ struct ForExpr : Expr {
         str += loop_body->str(depth);
         return str;
     }
-    ~ForExpr() { DEL_EXPR(loop_var); DEL_EXPR(range_expr); DEL_EXPR(loop_body); }
+    ~ForExpr() {
+        DEL_EXPR(loop_var);
+        DEL_EXPR(range_expr);
+        DEL_EXPR(loop_body);
+    }
 
     Expr* loop_var;
     Expr* range_expr;
@@ -186,7 +248,11 @@ struct FnDefExpr : Expr {
         str += body->str(depth);
         return str;
     }
-    ~FnDefExpr() { DEL_EXPR(fn_name); DEL_EXPR(args); DEL_EXPR(body); }
+    ~FnDefExpr() {
+        DEL_EXPR(fn_name);
+        DEL_EXPR(args);
+        DEL_EXPR(body);
+    }
 
     NameExpr* fn_name;
     Expr* args;
@@ -206,7 +272,11 @@ struct IfExpr : Expr {
         }
         return str;
     }
-    ~IfExpr() { DEL_EXPR(if_cond); DEL_EXPR(if_body); DEL_EXPR(else_body); }
+    ~IfExpr() {
+        DEL_EXPR(if_cond);
+        DEL_EXPR(if_body);
+        DEL_EXPR(else_body);
+    }
 
     bool has_else;
     Expr* if_cond;
@@ -217,9 +287,9 @@ struct IfExpr : Expr {
 struct PrintExpr : Expr {
     PrintExpr() = delete;
     PrintExpr(Expr* value) : value(value) {}
+    void codegen(Chunk& code) { code.addOp(OP_PRINT); }
     std::string str(int depth) { return tabs(depth) + YELLOW "print " RESET + value->str(); }
     ~PrintExpr() { delete value; }
 
     Expr* value;
 };
-

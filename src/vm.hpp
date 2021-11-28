@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cassert>
 #include <cstdio>
 #include <vector>
@@ -5,6 +7,8 @@
 #include "cfg.hpp"
 #include "color.hpp"
 #include "fs.hpp"
+#include "util.hpp"
+#include "time.hpp"
 
 enum OpCode {
 #define DECL_ENUM
@@ -36,6 +40,9 @@ struct MetaData {
 
 typedef int ConstIdx;
 struct Chunk {
+    Chunk() {}
+    Chunk(const Chunk& initcode)
+        : constants(initcode.constants), code(initcode.code), metadata(initcode.metadata) {}
     void addOp(OpCode op, int lineno = -1) {
         code.push_back(op);
         metadata.push_back({lineno});
@@ -55,7 +62,9 @@ struct Chunk {
 
     void finalize() {
         // chunk always ends in EOF token
+        assert(code.size());
         if (code.back() != OP_EOF) {
+            addOp(OP_RET);
             addOp(OP_EOF);
         }
         assert(metadata.size() == code.size());
@@ -68,12 +77,12 @@ struct Chunk {
         printf(CYAN "== BYTECODE LISTING ==\n");
         for (auto it = code.begin(); it != code.end(); it++, i++) {
             OpCode op = *it;
-            printf(CYAN "%d" RESET ": %s (%d) \n", i, opcode_to_str[op], op);
+            printf(CYAN "  %d" RESET ": %s \n", i, opcode_to_str[op]);
             if (op == OP_CONST) {
                 op = *(++it);
                 i++;
                 // assume constant is a number
-                printf(CYAN "%d" RESET ": \tCONST=%g\n", i, getConst(op).num);
+                printf(CYAN "  %d" RESET ": \tCONST=%g\n", i, getConst(op).num);
             }
         }
     }
@@ -89,11 +98,9 @@ struct Chunk {
     if (debug)                                                                                     \
         printf(__VA_ARGS__);
 
-// note stack can be modified in place! 
+// note stack can be modified in place!
 #define UNARY_OP(__op__)                                                                           \
-    {                                                                                              \
-        tos().num = -tos().num;                                                                        \
-    }
+    { tos().num = -tos().num; }
 
 // NOTE: must pop b before a, as a will be pushed unto the stack first!
 #define BINARY_OP(__op__)                                                                          \
@@ -107,8 +114,41 @@ enum class VMStatus { OK, ERR, INF_LOOP };
 struct VM {
     // returns pair of {op code , offset in bytecode chunk }
     std::pair<OpCode, int> readOp() { return {*ip++, ip - code.begin()}; }
-    VM() { push(Value()); }
+    VM(const Chunk& initcode) : code(initcode) {
+        code.finalize();
+        code.list();
+        push(Value()); // push null val into first position on the stack
+    }
+    void printStatus (const char* arg) {
+        printf("\n--\nVirtual Machine exited with status %s\n", arg);
+    };
     VMStatus run() {
+        printf(GREEN "\nVM Starting!\n" RESET);
+
+        auto starttime = getTime();
+        auto stat = exec();
+        printf(CYAN "VM completed in %.2g μs\n",timeSinceMicro(starttime));
+
+        switch (stat) {
+        case VMStatus::OK:
+            printStatus(GREEN "OK" RESET);
+            break;
+        case VMStatus::INF_LOOP:
+            break;
+            printStatus(YELLOW "INF_LOOP" RESET);
+            break;
+        case VMStatus::ERR:
+            break;
+            printStatus(RED "ERR" RESET);
+            break;
+        default:
+            printStatus(RED "UNKNOWN" RESET);
+            ERR("\tUNKNOWN status is %d\n", stat);
+            break;
+        }
+        return stat;
+    }
+    VMStatus exec() {
         ip = code.begin();
         constexpr int max_icount = 50;
         auto end = code.end();
@@ -128,6 +168,11 @@ struct VM {
             }
             case OP_CONST: {
                 push(code.getConst(readOp().first));
+                printOp();
+                break;
+            }
+            case OP_NOT: {
+                UNARY_OP(!);
                 printOp();
                 break;
             }
@@ -166,6 +211,16 @@ struct VM {
                 printOp();
                 break;
             }
+            case OP_CMP: {
+                BINARY_OP(==);
+                printOp();
+                break;
+            }
+            case OP_PRINT: {
+                printf("VM: %g\n", tos().num);
+                printOp();
+                break;
+            }
             case OP_EOF: {
                 printOp();
                 return VMStatus::ERR;
@@ -181,7 +236,7 @@ struct VM {
             }
 
             // print stack after opcode processed
-            if (debug_vmstack) {
+            if (debug && debug_vmstack) {
                 printf("\t\tSTACK \n\t\t{\n");
                 for (int i = stack.size() - 1; i > 0; --i) {
                     printf("\t\t\t[%2d] %g\n", i, stack[i].num);
@@ -209,9 +264,9 @@ struct VM {
     std::vector<Value> stack;
 };
 
+// use to hand test code sequences
 void dumpCode() {
-    VM vm;
-    auto& code = vm.code;
+    Chunk code;
     // (20-10) * 4 * 4 / 40
     code.addConstOp(1);
     code.addConstOp(4);
@@ -227,29 +282,12 @@ void dumpCode() {
     code.addOp(OP_DIV);
     code.addOp(OP_SUB);
     code.addOp(OP_OR);
+    code.addOp(OP_PRINT);
     code.addOp(OP_RET);
     code.finalize();
-
     code.list();
 
-    printDiv("VM Start");
-    auto printStatus = [](auto arg) { printf("\n--\nVm exited with status %s\n", arg); };
-    switch (auto stat = vm.run()) {
-    case VMStatus::OK:
-        printStatus(GREEN "OK" RESET);
-        break;
-    case VMStatus::INF_LOOP:
-        break;
-        printStatus(YELLOW "INF_LOOP" RESET);
-        break;
-    case VMStatus::ERR:
-        break;
-        printStatus(RED "ERR" RESET);
-        break;
-    default:
-        printStatus(RED "UNKNOWN" RESET);
-        printf("\tUNKNOWN status is %d\n", stat);
-        assert(0);
-        break;
-    }
+    VM vm(code);
+
+    vm.run();
 }

@@ -38,7 +38,8 @@ struct Parser {
         prefix_func_table[RET] = std::make_pair(&Parser::parseReturn, 1);
         prefix_func_table[ID] = std::make_pair(&Parser::parseID, 5);
         prefix_func_table[NUM] = std::make_pair(&Parser::parseNum, 5);
-        prefix_func_table[BANG] = std::make_pair(&Parser::parseUnaryOp, 30);
+        prefix_func_table[BANG] = std::make_pair(&Parser::parseUnaryOp, 100);
+        prefix_func_table[MINUS] = std::make_pair(&Parser::parseUnaryOp, 100);
         prefix_func_table[FOR] = std::make_pair(&Parser::parseFor, 100);
         prefix_func_table[FN] = std::make_pair(&Parser::parseFnDef, 100);
         prefix_func_table[IF] = std::make_pair(&Parser::parseIf, 100);

@@ -7,15 +7,6 @@
 #include "color.hpp"
 #include "fs.hpp"
 
-void printDiv(const char* str) {
-    static int phaseno = 1;
-    printf("\n-----------------------------------------------------------------"
-           "---------------\n");
-    printf(" Phase %d : %s\n", phaseno++, str);
-    printf("-------------------------------------------------------------------"
-           "-------------\n");
-}
-
 bool file_exists(std::string& filepath) { return access(filepath.c_str(), F_OK) == 0; }
 bool file_exists(const char* filepath) { return access(filepath, F_OK) == 0; }
 

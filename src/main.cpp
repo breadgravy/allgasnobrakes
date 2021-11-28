@@ -10,8 +10,9 @@
 #include "time.hpp"
 #include "scan.hpp"
 #include "parse.hpp"
-#include "semantic_analysis.hpp"
+#include "codegen.hpp"
 #include "vm.hpp"
+#include "err.hpp"
 
 ErrCode run_file(char* filepath, bool dump_source) {
 
@@ -40,25 +41,25 @@ ErrCode run_file(char* filepath, bool dump_source) {
         stmt->print(0, true);
     }
 
-    printDiv("Semantic Analysis");
-    SemanticAnalysis sa(statements);
-    sa.analyse();
+    printDiv("CodeGen");
+    CodeGen codegen(statements);
+    codegen.genCode();
 
-    printDiv("VM Startup");
-    dumpCode();
+    //printDiv("VM Startup");
+    //dumpCode();
 
     printDiv("Cleanup");
     for (auto& stmt : statements) {
         delete(stmt);
     }
 
-    printf(YELLOW "took %.3g ms\n" RESET,timeSince(starttime));
+    printf(YELLOW "took %.3g ms\n" RESET,timeSinceMilli(starttime));
     return SUCCESS;
 }
 
 void run_prompt() { printf("prompt goes here\n"); }
 
-void run_vm() { dumpCode(); }
+void run_vm() { }
 
 int main(int argc, char** argv) {
 
