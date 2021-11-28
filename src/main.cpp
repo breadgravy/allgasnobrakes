@@ -11,6 +11,7 @@
 #include "scan.hpp"
 #include "parse.hpp"
 #include "semantic_analysis.hpp"
+#include "vm.hpp"
 
 ErrCode run_file(char* filepath, bool dump_source) {
 
@@ -43,6 +44,9 @@ ErrCode run_file(char* filepath, bool dump_source) {
     SemanticAnalysis sa(statements);
     sa.analyse();
 
+    printDiv("VM Startup");
+    dumpCode();
+
     printDiv("Cleanup");
     for (auto& stmt : statements) {
         delete(stmt);
@@ -54,6 +58,8 @@ ErrCode run_file(char* filepath, bool dump_source) {
 
 void run_prompt() { printf("prompt goes here\n"); }
 
+void run_vm() { dumpCode(); }
+
 int main(int argc, char** argv) {
 
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -61,7 +67,7 @@ int main(int argc, char** argv) {
     if (argc == 2) {
         run_file(argv[1], false);
     } else if (argc == 1) {
-        run_prompt();
+        run_vm();
     } else {
         printf("too many args!\n");
     }

@@ -17,7 +17,7 @@ struct Parser;
 // Base Class
 struct Expr {
     void print(int depth = 0, bool semicolon = false) {
-        printf("%s%s\n", str().c_str(), semicolon ? ";" : "");
+        printf("%s%s\n\n", str().c_str(), semicolon ? ";" : "");
     }
     // pretty print expression at requested indentation
     virtual std::string str(int depth = 0) { return "(UNIMPLEMENTED)"; }

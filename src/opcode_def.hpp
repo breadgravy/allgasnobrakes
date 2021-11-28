@@ -1,0 +1,6 @@
+#include "opcode_macros.hpp"
+
+OPCODE(OP_NOP)
+OPCODE(OP_CONSTANT)
+OPCODE(OP_RETURN)
+OPCODE(OP_EOF)

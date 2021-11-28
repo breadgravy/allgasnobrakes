@@ -36,7 +36,8 @@ lib: $(OBJN)
 run: lib exe
 	$(info )	
 	$(info --------------------------------------------------------------------------------)
-	@ ./$(BIN_DIR)/$(EXE) $(TEST_INPUT_DIR)/test02 
+	@# ./$(BIN_DIR)/$(EXE) $(TEST_INPUT_DIR)/test02 
+	@ ./$(BIN_DIR)/$(EXE)
 
 debug:
 	$(info )	
