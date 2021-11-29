@@ -39,7 +39,7 @@ struct Expr {
     // pretty print expression at requested indentation
     virtual std::string str(int depth = 0) { return "(UNIMPLEMENTED)"; }
     virtual bool isNameExpr() { return false; }
-    virtual void codegen(Chunk& code) { ERR("codegen for expr '%s' is UNIMPLEMENTED.\n",str(0).c_str()); }
+    virtual void codegen(Chunk& code) { ERR("codegen for expr \n'%s' is UNIMPLEMENTED.\n",str(0).c_str()); }
     virtual ~Expr();
     std::string tabs(int depth) {
         std::string tabs;
@@ -140,7 +140,7 @@ struct ReturnExpr : Expr {
     ReturnExpr() = delete;
     ReturnExpr(Expr* value) : value(value) {}
     void codegen(Chunk& code) { code.addOp(OP_RET); }
-    std::string str(int depth) { return tabs(depth) + MAGENTA "ret " RESET + value->str(); }
+    std::string str(int depth) { return tabs(depth) + BRIGHTMAGENTA "ret " RESET + value->str(); }
     ~ReturnExpr() { DEL_EXPR(value); }
 
     Expr* value;
@@ -149,7 +149,7 @@ struct ReturnExpr : Expr {
 struct VarExpr : Expr {
     VarExpr() = delete;
     VarExpr(Expr* expr) : expr(expr) {}
-    std::string str(int depth) { return tabs(depth) + MAGENTA "var " RESET + expr->str(); }
+    std::string str(int depth) { return tabs(depth) + BRIGHTMAGENTA "var " RESET + expr->str(); }
     ~VarExpr() { DEL_EXPR(expr); }
 
     Expr* expr;
@@ -220,7 +220,7 @@ struct ForExpr : Expr {
     ForExpr(Expr* loop_var, Expr* range_expr, Expr* loop_body)
         : loop_var(loop_var), range_expr(range_expr), loop_body(loop_body) {}
     std::string str(int depth) {
-        std::string str = tabs(depth) + MAGENTA "for " RESET;
+        std::string str = tabs(depth) + BRIGHTMAGENTA "for " RESET;
         str += loop_var->str();
         str += " : " + range_expr->str() + "\n";
         str += loop_body->str(depth);
@@ -242,7 +242,7 @@ struct FnDefExpr : Expr {
     FnDefExpr(NameExpr* fn_name, Expr* args, Expr* body)
         : fn_name(fn_name), args(args), body(body) {}
     std::string str(int depth) {
-        std::string str = tabs(depth) + MAGENTA "fn " RESET;
+        std::string str = tabs(depth) + BRIGHTMAGENTA "fn " RESET;
         str += YELLOW + fn_name->str(0) + RESET;
         str += "(" + args->str() + ")\n";
         str += body->str(depth);
@@ -264,7 +264,7 @@ struct IfExpr : Expr {
     IfExpr(bool hasElse, Expr* if_cond, Expr* if_body, Expr* else_body)
         : has_else(hasElse), if_cond(if_cond), if_body(if_body), else_body(else_body) {}
     std::string str(int depth) {
-        std::string str = tabs(depth) + MAGENTA "if " RESET;
+        std::string str = tabs(depth) + BRIGHTMAGENTA "if " RESET;
         str += if_cond->str() + "\n";
         str += if_body->str(depth);
         if (has_else) {
