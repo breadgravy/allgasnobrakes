@@ -7,8 +7,8 @@
 #include "cfg.hpp"
 #include "color.hpp"
 #include "fs.hpp"
-#include "util.hpp"
 #include "time.hpp"
+#include "util.hpp"
 
 enum OpCode {
 #define DECL_ENUM
@@ -21,16 +21,53 @@ const char* opcode_to_str[] = {
 #undef DECL_STRING_TABLE
 };
 
-enum class Tag { VAL_NULL, VAL_NUM, VAL_OBJ };
+enum class Tag { VAL_NULL, VAL_NUM, VAL_BOOL };
 struct Value {
-    Value() : tag(Tag::VAL_NULL), num(-1) {}
+    Value() : tag(Tag::VAL_NULL) {}
     Value(double val) {
         tag = Tag::VAL_NUM;
         num = val;
     }
+    Value(int val) {
+        tag = Tag::VAL_NUM;
+        num = double(val);
+    }
+    Value(bool val) {
+        tag = Tag::VAL_BOOL;
+        boolean = val;
+    }
+    bool isNum() const { return tag == Tag::VAL_NUM; }
+    bool isBool() const { return tag == Tag::VAL_BOOL; }
+    double asNum() const {
+        assert(tag == Tag::VAL_NUM);
+        return num;
+    }
+    bool asBool() const {
+        if (isBool())
+            return boolean;
+        else if (isNum())
+            return bool(num);
+        else
+            return false;
+    }
+
+    std::string str() const {
+        if (isBool()) {
+            return boolean ? MAGENTA "True" RESET : MAGENTA "False" RESET;
+        } else if (isNum()) {
+            char buf[100];
+            sprintf(buf, GREEN "%g" RESET, num);
+            return buf;
+        } else {
+            return RED "nil" RESET;
+        }
+    }
+
+    /////////////////////////////////
     Tag tag = Tag::VAL_NULL;
     union {
         double num;
+        bool boolean;
     };
 };
 
@@ -47,13 +84,19 @@ struct Chunk {
         code.push_back(op);
         metadata.push_back({lineno});
     }
-    void addConstOp(double val, int lineno = -1) {
-        auto idx = regConstVal(val);
+    void addConstNum(double val, int lineno = -1) {
+        auto idx = regConstVal<double>(val);
         addOp(OP_CONST);
         // constant is Constidx stored directly in bytecode stream
         addOp(OpCode(idx));
     }
-    ConstIdx regConstVal(double constant) {
+    void addConstBool(bool val, int lineno = -1) {
+        auto idx = regConstVal<bool>(val);
+        addOp(OP_CONST);
+        // constant is Constidx stored directly in bytecode stream
+        addOp(OpCode(idx));
+    }
+    template <typename T> ConstIdx regConstVal(T constant) {
         assert(constants.size() < 255);
         constants.push_back(Value(constant));
         return constants.size() - 1;
@@ -81,8 +124,7 @@ struct Chunk {
             if (op == OP_CONST) {
                 op = *(++it);
                 i++;
-                // assume constant is a number
-                printf(CYAN "  %d" RESET ": \tCONST=%g\n", i, getConst(op).num);
+                printf(CYAN "  %d" RESET ": \tCONST=%s\n", i, getConst(op).str().c_str());
             }
         }
     }
@@ -100,14 +142,25 @@ struct Chunk {
 
 // note stack can be modified in place!
 #define UNARY_OP(__op__)                                                                           \
-    { tos().num = -tos().num; }
+    {                                                                                              \
+        Value operand = tos();                                                                     \
+        if (operand.isNum()) {                                                                     \
+            tos().num = __op__ operand.asNum();                                                    \
+        } else if (operand.isBool()) {                                                             \
+            tos().boolean = __op__ operand.asBool();                                               \
+        }                                                                                          \
+    }
 
 // NOTE: must pop b before a, as a will be pushed unto the stack first!
 #define BINARY_OP(__op__)                                                                          \
     {                                                                                              \
-        auto b = pop().num;                                                                        \
-        auto a = pop().num;                                                                        \
-        push(Value(a __op__ b));                                                                   \
+        Value B = pop();                                                                           \
+        Value A = pop();                                                                           \
+        if (A.isNum() and B.isNum()) {                                                             \
+            push(A.asNum() __op__ B.asNum());                                                      \
+        } else {                                                                                   \
+            push(A.asBool() __op__ B.asBool());                                                    \
+        }                                                                                          \
     }
 
 enum class VMStatus { OK, ERR, INF_LOOP };
@@ -119,15 +172,18 @@ struct VM {
         code.list();
         push(Value()); // push null val into first position on the stack
     }
-    void printStatus (const char* arg) {
-        printf("\n--\nVirtual Machine exited with status %s\n", arg);
+    void printStatus(const char* arg) {
+        printf(CYAN BOLD "Exit status = %s\n\n" RESET, arg);
     };
     VMStatus run() {
-        printf(GREEN "\nVM Starting!\n" RESET);
+        printf(GREEN BOLD "\nVM Starting!\n"
+                          "------------\n" RESET);
 
         auto starttime = getTime();
         auto stat = exec();
-        printf(CYAN "VM completed in %.2g μs\n",timeSinceMicro(starttime));
+        printf(CYAN BOLD "\n-----------------------\n"
+                         "VM completed in %.2g μs\n" RESET,
+               timeSinceMicro(starttime));
 
         switch (stat) {
         case VMStatus::OK:
@@ -158,7 +214,7 @@ struct VM {
             int pos = op_pair.second;
 
             auto printOp = [this, op, pos]() {
-                DEBUG("%3d: %-8s %-3g\n", pos, opcode_to_str[op], this->tos().num);
+                DEBUG("%3d: %-8s %s\n", pos, opcode_to_str[op], tos().str().c_str());
             };
 
             switch (op) {
@@ -217,7 +273,7 @@ struct VM {
                 break;
             }
             case OP_PRINT: {
-                printf("VM: %g\n", tos().num);
+                printf(BOLD "vmprint: %s\n" RESET, tos().str().c_str());
                 printOp();
                 break;
             }
@@ -239,7 +295,8 @@ struct VM {
             if (debug && debug_vmstack) {
                 printf("\t\tSTACK \n\t\t{\n");
                 for (int i = stack.size() - 1; i > 0; --i) {
-                    printf("\t\t\t[%2d] %g\n", i, stack[i].num);
+                    Value val = stack[i];
+                    printf("\t\t\t[%2d] %s\n", i, val.str().c_str());
                 }
                 printf("\t\t}\n");
             }
@@ -268,13 +325,13 @@ struct VM {
 void dumpCode() {
     Chunk code;
     // (20-10) * 4 * 4 / 40
-    code.addConstOp(1);
-    code.addConstOp(4);
-    code.addConstOp(40);
-    code.addConstOp(4);
-    code.addConstOp(4);
-    code.addConstOp(20);
-    code.addConstOp(-10);
+    code.addConstNum(1);
+    code.addConstNum(4);
+    code.addConstNum(40);
+    code.addConstNum(4);
+    code.addConstNum(4);
+    code.addConstNum(20);
+    code.addConstNum(-10);
     code.addOp(OP_NEG);
     code.addOp(OP_SUB);
     code.addOp(OP_MULT);

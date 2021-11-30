@@ -63,7 +63,7 @@ struct NameExpr : Expr {
 };
 struct NumExpr : Expr {
     NumExpr(double num) : num(num) {}
-    void codegen(Chunk& code) { code.addConstOp(num); }
+    void codegen(Chunk& code) { code.addConstNum(num); }
     std::string str(int depth) {
         char buf[200];
         sprintf(buf, "%g", num);
@@ -72,6 +72,18 @@ struct NumExpr : Expr {
     ~NumExpr() {}
 
     double num;
+};
+struct BoolExpr : Expr {
+    BoolExpr(bool val) : val(val) {}
+    void codegen(Chunk& code) { code.addConstBool(val); }
+    std::string str(int depth) {
+        char buf[200];
+        sprintf(buf, "%s", val ? "True" : "False");
+        return tabs(depth) + buf;
+    }
+    ~BoolExpr() {}
+
+    bool val;
 };
 struct UnaryOpExpr : Expr {
     UnaryOpExpr(TokenType type, Expr* right) : type(type), right(right) {
@@ -287,7 +299,7 @@ struct IfExpr : Expr {
 struct PrintExpr : Expr {
     PrintExpr() = delete;
     PrintExpr(Expr* value) : value(value) {}
-    void codegen(Chunk& code) { code.addOp(OP_PRINT); }
+    void codegen(Chunk& code) { value->codegen(code); code.addOp(OP_PRINT); }
     std::string str(int depth) { return tabs(depth) + YELLOW "print " RESET + value->str(); }
     ~PrintExpr() { delete value; }
 

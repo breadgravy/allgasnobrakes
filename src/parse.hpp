@@ -38,6 +38,8 @@ struct Parser {
         prefix_func_table[RET] = std::make_pair(&Parser::parseReturn, 1);
         prefix_func_table[ID] = std::make_pair(&Parser::parseID, 5);
         prefix_func_table[NUM] = std::make_pair(&Parser::parseNum, 5);
+        prefix_func_table[TRUE] = std::make_pair(&Parser::parseBool, 5);
+        prefix_func_table[FALSE] = std::make_pair(&Parser::parseBool, 5);
         prefix_func_table[BANG] = std::make_pair(&Parser::parseUnaryOp, 100);
         prefix_func_table[MINUS] = std::make_pair(&Parser::parseUnaryOp, 100);
         prefix_func_table[FOR] = std::make_pair(&Parser::parseFor, 100);
@@ -73,6 +75,7 @@ struct Parser {
             printf("CALL prefix %s:%d\n", tokit->str.c_str(), token_pos);
         Expr* expr = getPrefixFunc(tokit->type)(*this);
 
+        printf("Finding infix expr wih precedence > %d\n", precedence);
         while (precedence < getInfixPrecedence()) {
             if (parseVerbose)
                 printf("CALL infix %s:%d\n", tokit->str.c_str(), getTokenPos());
@@ -131,6 +134,10 @@ struct Parser {
     static NumExpr* parseNum(Parser& parser) {
         assert(parser.currtype() == NUM);
         return new NumExpr(atof(parser.consume().str.c_str()));
+    }
+    static BoolExpr* parseBool(Parser& parser) {
+        assert(parser.currtype() == TRUE or parser.currtype() == FALSE);
+        return new BoolExpr(parser.consume().type == TRUE);
     }
     static UnaryOpExpr* parseUnaryOp(Parser& parser) {
         TokenType type = parser.consume().type;

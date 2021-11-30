@@ -21,6 +21,8 @@ DECL_TOKEN_TYPE(RET,"ret")          // DONE
 DECL_TOKEN_TYPE(TO,"to")            // DONE
 DECL_TOKEN_TYPE(CMP,"cmp")          // DONE
 DECL_TOKEN_TYPE(COLON,":")          // DONE
+DECL_TOKEN_TYPE(TRUE,"True")        // DONE
+DECL_TOKEN_TYPE(FALSE,"False")      // DONE
 
 DECL_TOKEN_TYPE(SEMICOLON,"")       // DONE
 DECL_TOKEN_TYPE(LEFT_PAREN,"(")     // DONE

@@ -40,15 +40,15 @@ struct Token {
     int linepos = 0;
 };
 
-#define SINGLE_CHAR_TOKEN(__ch__, __token_type__)                                                                      \
-    case __ch__: {                                                                                                     \
-        tok(__token_type__, str(__ch__));                                                                              \
-        break;                                                                                                         \
+#define SINGLE_CHAR_TOKEN(__ch__, __token_type__)                                                  \
+    case __ch__: {                                                                                 \
+        tok(__token_type__, str(__ch__));                                                          \
+        break;                                                                                     \
     }
 
-#define KW_MATCH(__token_type__, __token_str__)                                                                        \
-    else if (re_match(idstr, "^" #__token_str__ "$")) {                                                                \
-        return __token_type__;                                                                                         \
+#define KW_MATCH(__token_type__, __token_str__)                                                    \
+    else if (re_match(idstr, "^" #__token_str__ "$")) {                                            \
+        return __token_type__;                                                                     \
     }
 
 struct Scanner {
@@ -61,11 +61,14 @@ struct Scanner {
         while (ch != '\0') {
             switch (ch) {
             case '#': {
-                if (scanVerbose) printf("Commented " CYAN);
+                if (scanVerbose)
+                    printf("Commented " CYAN);
                 for (; ch != '\n' and ch != '\0'; ch = advance()) {
-                    if (scanVerbose) printf("%c", ch);
+                    if (scanVerbose)
+                        printf("%c", ch);
                 }
-                if (scanVerbose) printf(RESET " on LINE %d.\n", _lineno);
+                if (scanVerbose)
+                    printf(RESET " on LINE %d.\n", _lineno);
                 _lineno++;
                 break;
             }
@@ -109,7 +112,11 @@ struct Scanner {
                 SINGLE_CHAR_TOKEN('[', LEFT_BRACKET)
                 SINGLE_CHAR_TOKEN(']', RIGHT_BRACKET)
             default: {
-                printf("Found unimpl char '%c' (%d) at lineno %d, pos %d\n", ch, ch, _lineno, _linepos);
+                printf("Found unimpl char '%c' (%d) at lineno %d, pos %d\n",
+                       ch,
+                       ch,
+                       _lineno,
+                       _linepos);
                 exit(0);
                 break;
             }
@@ -138,6 +145,8 @@ struct Scanner {
         KW_MATCH(PRINT, print)
         KW_MATCH(RET, ret)
         KW_MATCH(TO, to)
+        KW_MATCH(TRUE, True)
+        KW_MATCH(FALSE, False)
         else {
             return ID;
         }
@@ -166,7 +175,10 @@ struct Scanner {
     }
     std::string str(char c) { return std::string(1, c); }
     void tok(TokenType type, std::string str) {
-        _tokens.push_back({.type = type, .str = std::move(str), .lineno = _lineno, .linepos = _linepos});
+        _tokens.push_back({.type = type,
+                           .str = std::move(str),
+                           .lineno = _lineno,
+                           .linepos = _linepos});
     }
     char advance() {
         _linepos++;
