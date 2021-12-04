@@ -75,7 +75,8 @@ struct Parser {
             printf("CALL prefix %s:%d\n", tokit->str.c_str(), token_pos);
         Expr* expr = getPrefixFunc(tokit->type)(*this);
 
-        printf("Finding infix expr wih precedence > %d\n", precedence);
+        if (parseVerbose)
+            printf("Finding infix expr wih precedence > %d\n", precedence);
         while (precedence < getInfixPrecedence()) {
             if (parseVerbose)
                 printf("CALL infix %s:%d\n", tokit->str.c_str(), getTokenPos());

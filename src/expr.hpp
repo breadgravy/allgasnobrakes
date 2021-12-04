@@ -31,6 +31,11 @@ struct Parser;
     if (expr != nullptr)                                                                           \
         delete expr;
 
+struct BinaryOpExpr;
+struct UnaryOpExpr;
+struct NameExpr;
+struct NumExpr;
+
 // Base Class
 struct Expr {
     void print(int depth = 0, bool semicolon = false) {
@@ -39,6 +44,12 @@ struct Expr {
     // pretty print expression at requested indentation
     virtual std::string str(int depth = 0) { return "(UNIMPLEMENTED)"; }
     virtual bool isNameExpr() { return false; }
+    virtual bool isBinaryOpExpr() { return false; }
+    virtual bool isUnaryOpExpr() { return false; }
+    BinaryOpExpr* asBinOp();
+    UnaryOpExpr* asUnaryOp();
+    NameExpr* asName();
+    NumExpr* asNum();
     virtual void codegen(Chunk& code) { ERR("codegen for expr \n'%s' is UNIMPLEMENTED.\n",str(0).c_str()); }
     virtual ~Expr();
     std::string tabs(int depth) {
@@ -56,6 +67,7 @@ struct EmptyExpr : Expr {
 struct NameExpr : Expr {
     NameExpr(std::string name) : name(std::move(name)) {}
     bool isNameExpr() { return true; }
+    void codegen(Chunk& code) { code.addConstStr(name); }
     std::string str(int depth) { return name; }
     ~NameExpr() {}
 
@@ -99,6 +111,7 @@ struct UnaryOpExpr : Expr {
                 str(0).c_str());
         }
     }
+    virtual bool isUnaryOpExpr() { return true; }
     std::string str(int depth) { return "(" + std::string(token_to_repr[type]) + right->str() + ")"; }
     ~UnaryOpExpr() { DEL_EXPR(right); }
 
@@ -123,6 +136,7 @@ struct BinaryOpExpr : Expr {
                 str(0).c_str());
         }
     }
+    virtual bool isBinaryOpExpr() { return true; }
     ~BinaryOpExpr() {
         DEL_EXPR(left);
         DEL_EXPR(right);
@@ -160,8 +174,43 @@ struct ReturnExpr : Expr {
 
 struct VarExpr : Expr {
     VarExpr() = delete;
-    VarExpr(Expr* expr) : expr(expr) {}
+    VarExpr(Expr* value) : expr(value) {}
     std::string str(int depth) { return tabs(depth) + BRIGHTMAGENTA "var " RESET + expr->str(); }
+
+    void codegen(Chunk& code) {
+        if (expr->isBinaryOpExpr()){
+            auto* assexpr = expr->asBinOp();
+            assert(assexpr->type == EQUALS);
+
+            // generate code for rhs expr
+            assexpr->right->codegen(code); 
+
+            // this is assuming all definitions are global atm
+            code.addOp(OP_DEFINE_GLOBAL); 
+
+            // put the var name in the constant table
+            assert(assexpr->left->isNameExpr());
+            auto varname = assexpr->left->asName()->name;
+            ConstIdx idx = code.regConstVal<std::string>(varname);
+            //... and embed idx in instr stream
+            code.addOp(OpCode(idx));
+        } else if (expr->isNameExpr()){
+
+            // no rhs expr, init to null
+            code.addConstNull();
+
+            // this is assuming all definitions are global atm
+            code.addOp(OP_DEFINE_GLOBAL);
+
+            // put the var name in the constant table
+            auto varname = expr->asName()->name;
+            ConstIdx idx = code.regConstVal<std::string>(varname);
+            //... and embed idx in instr stream
+            code.addOp(OpCode(idx));
+        } else {
+            assert(0 && "Ill-formed VarExpr");
+        }
+    }
     ~VarExpr() { DEL_EXPR(expr); }
 
     Expr* expr;
@@ -305,3 +354,10 @@ struct PrintExpr : Expr {
 
     Expr* value;
 };
+
+////
+
+BinaryOpExpr* Expr::asBinOp() { return dynamic_cast<BinaryOpExpr*>(this); } 
+UnaryOpExpr* Expr::asUnaryOp() { return dynamic_cast<UnaryOpExpr*>(this);  } 
+NameExpr* Expr::asName() { return dynamic_cast<NameExpr*>(this); } 
+NumExpr* Expr::asNum() { return dynamic_cast<NumExpr*>(this); }

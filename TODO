@@ -1,4 +1,3 @@
-add handling for proper tagged Values
-    number
-    boolean
-    nil
+read through crafting interpreters Chapter 21 and 22
+implement global variables
+implement local variables

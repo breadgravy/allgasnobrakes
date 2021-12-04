@@ -2,7 +2,9 @@
 
 #include <cassert>
 #include <cstdio>
+#include <cstring>
 #include <vector>
+#include <unordered_map>
 
 #include "cfg.hpp"
 #include "color.hpp"
@@ -21,9 +23,14 @@ const char* opcode_to_str[] = {
 #undef DECL_STRING_TABLE
 };
 
-enum class Tag { VAL_NULL, VAL_NUM, VAL_BOOL };
+#define DEBUG(...) if (debug) { printf(__VA_ARGS__); }
+
+enum class Tag { VAL_NULL, VAL_NUM, VAL_BOOL, VAL_STR };
 struct Value {
     Value() : tag(Tag::VAL_NULL) {}
+    ~Value() {
+        // if (tag == Tag::VAL_STR) delete str;
+    }
     Value(double val) {
         tag = Tag::VAL_NUM;
         num = val;
@@ -36,8 +43,18 @@ struct Value {
         tag = Tag::VAL_BOOL;
         boolean = val;
     }
+    Value(const std::string& val) {
+        tag = Tag::VAL_STR;
+        str = strdup(val.c_str());
+    }
+    Value(const char* val) {
+        tag = Tag::VAL_STR;
+        str = strdup(val);
+    }
     bool isNum() const { return tag == Tag::VAL_NUM; }
     bool isBool() const { return tag == Tag::VAL_BOOL; }
+    bool isString() const { return tag == Tag::VAL_STR; }
+
     double asNum() const {
         assert(tag == Tag::VAL_NUM);
         return num;
@@ -50,10 +67,16 @@ struct Value {
         else
             return false;
     }
+    std::string asString() const {
+        assert(tag == Tag::VAL_STR);
+        return str;
+    }
 
-    std::string str() const {
+    std::string tostr() const {
         if (isBool()) {
             return boolean ? MAGENTA "True" RESET : MAGENTA "False" RESET;
+        } else if (isString()) {
+            return std::string("\"") + str + "\"";
         } else if (isNum()) {
             char buf[100];
             sprintf(buf, GREEN "%g" RESET, num);
@@ -68,6 +91,7 @@ struct Value {
     union {
         double num;
         bool boolean;
+        const char* str;
     };
 };
 
@@ -84,24 +108,45 @@ struct Chunk {
         code.push_back(op);
         metadata.push_back({lineno});
     }
-    void addConstNum(double val, int lineno = -1) {
+    ConstIdx addConstStr(const std::string& val, int lineno = -1) {
+        auto idx = regConstVal<std::string>(val);
+        addOp(OP_CONST);
+        // constant is Constidx stored directly in bytecode stream
+        addOp(OpCode(idx));
+        return idx;
+    }
+    ConstIdx addConstNum(double val, int lineno = -1) {
         auto idx = regConstVal<double>(val);
         addOp(OP_CONST);
         // constant is Constidx stored directly in bytecode stream
         addOp(OpCode(idx));
+        return idx;
     }
-    void addConstBool(bool val, int lineno = -1) {
+    ConstIdx addConstBool(bool val, int lineno = -1) {
         auto idx = regConstVal<bool>(val);
         addOp(OP_CONST);
         // constant is Constidx stored directly in bytecode stream
         addOp(OpCode(idx));
+        return idx;
+    }
+    ConstIdx addConstNull(int lineno = -1) {
+        auto idx = constants.size();
+        assert(constants.size() < 255);
+        constants.push_back(Value());
+        addOp(OP_CONST);
+        addOp(OpCode(idx));
+        return idx;
     }
     template <typename T> ConstIdx regConstVal(T constant) {
         assert(constants.size() < 255);
         constants.push_back(Value(constant));
         return constants.size() - 1;
     }
-    Value getConst(ConstIdx idx) { return constants.at(idx); }
+    Value getConst(ConstIdx idx) { 
+        DEBUG("\tread const[%d]\n",idx);
+        assert(idx < constants.size());
+        return constants.at(idx); 
+    }
 
     void finalize() {
         // chunk always ends in EOF token
@@ -121,12 +166,13 @@ struct Chunk {
         for (auto it = code.begin(); it != code.end(); it++, i++) {
             OpCode op = *it;
             printf(CYAN "  %d" RESET ": %s \n", i, opcode_to_str[op]);
-            if (op == OP_CONST) {
+            if (op == OP_CONST or op == OP_DEFINE_GLOBAL) {
                 op = *(++it);
                 i++;
-                printf(CYAN "  %d" RESET ": \tCONST=%s\n", i, getConst(op).str().c_str());
+                printf(CYAN "  %d" RESET ": \tCONST=%s\n", i, getConst(op).tostr().c_str());
             }
         }
+        printf(CYAN "== ---------------- ==\n");
     }
 
     ////////////////////////////////////////////////////////////////////
@@ -135,10 +181,6 @@ struct Chunk {
     std::vector<OpCode> code;
     std::vector<MetaData> metadata;
 };
-
-#define DEBUG(...)                                                                                 \
-    if (debug)                                                                                     \
-        printf(__VA_ARGS__);
 
 // note stack can be modified in place!
 #define UNARY_OP(__op__)                                                                           \
@@ -172,9 +214,7 @@ struct VM {
         code.list();
         push(Value()); // push null val into first position on the stack
     }
-    void printStatus(const char* arg) {
-        printf(CYAN BOLD "Exit status = %s\n\n" RESET, arg);
-    };
+    void printStatus(const char* arg) { printf(CYAN BOLD "Exit status = %s\n\n" RESET, arg); };
     VMStatus run() {
         printf(GREEN BOLD "\nVM Starting!\n"
                           "------------\n" RESET);
@@ -214,7 +254,7 @@ struct VM {
             int pos = op_pair.second;
 
             auto printOp = [this, op, pos]() {
-                DEBUG("%3d: %-8s %s\n", pos, opcode_to_str[op], tos().str().c_str());
+                DEBUG("%3d: %-8s %s\n", pos, opcode_to_str[op], tos().tostr().c_str());
             };
 
             switch (op) {
@@ -273,7 +313,7 @@ struct VM {
                 break;
             }
             case OP_PRINT: {
-                printf(BOLD "vmprint: %s\n" RESET, tos().str().c_str());
+                printf(BOLD "vmprint: %s\n" RESET, pop().tostr().c_str());
                 printOp();
                 break;
             }
@@ -285,9 +325,30 @@ struct VM {
                 printOp();
                 return VMStatus::OK;
             }
+            case OP_POP: {
+                pop();
+                printOp();
+                return VMStatus::OK;
+            }
+            case OP_DEFINE_GLOBAL: {
+                // next OpCode is ConstIdx of varname
+                ConstIdx const_idx = readOp().first;
+                Value val = code.getConst(const_idx);
+                assert(val.isString());
+                auto varname = val.asString(); 
+                
+                // store the value at tos in global map
+                globals[varname] = pop();
+                printf("defined global %s = %s (const %d)\n",
+                        varname.c_str(),
+                        globals[varname].tostr().c_str(),
+                        const_idx);
+                printOp();
+                return VMStatus::OK;
+            }
             default: {
-                DEBUG(RED "%d: unimplemented op code %s (%d) \n" RESET, pos, opcode_to_str[op], op);
-                assert(0);
+                printf(RED "%d: unimplemented op code %s (%d) \n" RESET, pos, opcode_to_str[op], op);
+                exit(0);
             }
             }
 
@@ -296,7 +357,7 @@ struct VM {
                 printf("\t\tSTACK \n\t\t{\n");
                 for (int i = stack.size() - 1; i > 0; --i) {
                     Value val = stack[i];
-                    printf("\t\t\t[%2d] %s\n", i, val.str().c_str());
+                    printf("\t\t\t[%2d] %s\n", i, val.tostr().c_str());
                 }
                 printf("\t\t}\n");
             }
@@ -319,12 +380,14 @@ struct VM {
     Chunk code;
     std::vector<OpCode>::const_iterator ip;
     std::vector<Value> stack;
+    std::unordered_map<std::string,Value> globals;
 };
 
 // use to hand test code sequences
 void dumpCode() {
     Chunk code;
     // (20-10) * 4 * 4 / 40
+    code.addConstStr("sdfsdf");
     code.addConstNum(1);
     code.addConstNum(4);
     code.addConstNum(40);
