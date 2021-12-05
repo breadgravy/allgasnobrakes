@@ -1,8 +1,9 @@
 #var a;
-#var a = 10;
+var a = 10;
 #var a = 10 * 123;
 #var a = c;
-var a =  100* (4 and 2 or True) / 3;
+#var a =  100* (4 and 2 or True) / 3;
+var a = "sdf sdf sdf ";
 
 #1 / 20 / (10 * 10) + (-20 - 30);
 

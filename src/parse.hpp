@@ -38,6 +38,7 @@ struct Parser {
         prefix_func_table[RET] = std::make_pair(&Parser::parseReturn, 1);
         prefix_func_table[ID] = std::make_pair(&Parser::parseID, 5);
         prefix_func_table[NUM] = std::make_pair(&Parser::parseNum, 5);
+        prefix_func_table[STRING] = std::make_pair(&Parser::parseString, 5);
         prefix_func_table[TRUE] = std::make_pair(&Parser::parseBool, 5);
         prefix_func_table[FALSE] = std::make_pair(&Parser::parseBool, 5);
         prefix_func_table[BANG] = std::make_pair(&Parser::parseUnaryOp, 100);
@@ -135,6 +136,10 @@ struct Parser {
     static NumExpr* parseNum(Parser& parser) {
         assert(parser.currtype() == NUM);
         return new NumExpr(atof(parser.consume().str.c_str()));
+    }
+    static StringExpr* parseString(Parser& parser) {
+        assert(parser.currtype() == STRING);
+        return new StringExpr(parser.consume().str);
     }
     static BoolExpr* parseBool(Parser& parser) {
         assert(parser.currtype() == TRUE or parser.currtype() == FALSE);

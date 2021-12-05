@@ -28,7 +28,7 @@ struct CodeGen {
             // expr should always leave stack idx at +1
             stmtexpr->codegen(exprcode);
             // ... so pop at end of stmt to restore stack
-            code.addOp(OP_POP);
+            exprcode.addOp(OP_POP);
             VM vm(exprcode);
             vm.run();
         }

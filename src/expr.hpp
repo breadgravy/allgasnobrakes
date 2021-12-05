@@ -73,6 +73,22 @@ struct NameExpr : Expr {
 
     std::string name;
 };
+struct StringExpr : Expr {
+    StringExpr(std::string str) : string(str) {}
+    bool isStringExpr() { return true; }
+    void codegen(Chunk& code) { code.addConstStr(string); }
+    std::string str(int depth) { 
+        std::string str = BRIGHTBLUE;
+        str.append("\""); 
+        str.append(string); 
+        str.append("\""); 
+        str.append(RESET); 
+        return str;
+    }
+    ~StringExpr() {}
+
+    std::string string;
+};
 struct NumExpr : Expr {
     NumExpr(double num) : num(num) {}
     void codegen(Chunk& code) { code.addConstNum(num); }

@@ -60,6 +60,26 @@ struct Scanner {
         _linepos = 0;
         while (ch != '\0') {
             switch (ch) {
+            case '"': {
+                int start_lineno = _lineno;
+                if (scanVerbose)
+                    printf("Capturing String Literal " BRIGHTBLUE "\"");
+                ch = advance();
+                std::string str;
+                for (; ch != '"' and ch != '\0'; ch = advance()) {
+                    if (scanVerbose)
+                        printf("%c", ch);
+                    if (ch == '\n')
+                        _lineno++;
+                    str.push_back(ch);
+                }
+                if (scanVerbose)
+                    printf("\"" RESET " on LINE %d\n",start_lineno);
+
+                tok(STRING, str);
+
+                break;
+            }
             case '#': {
                 if (scanVerbose)
                     printf("Commented " CYAN);
@@ -207,7 +227,7 @@ struct Scanner {
 
     std::vector<Token> _tokens;
     int _linepos = 0;
-    int _lineno = 0;
+    int _lineno = 1;
     const char* _srcbuf = nullptr;
     const size_t _sz = 0;
 };

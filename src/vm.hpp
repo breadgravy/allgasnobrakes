@@ -76,7 +76,7 @@ struct Value {
         if (isBool()) {
             return boolean ? MAGENTA "True" RESET : MAGENTA "False" RESET;
         } else if (isString()) {
-            return std::string("\"") + str + "\"";
+            return std::string(BRIGHTBLUE "\"") + str + "\"" RESET;
         } else if (isNum()) {
             char buf[100];
             sprintf(buf, GREEN "%g" RESET, num);
@@ -143,7 +143,7 @@ struct Chunk {
         return constants.size() - 1;
     }
     Value getConst(ConstIdx idx) { 
-        DEBUG("\tread const[%d]\n",idx);
+        DEBUG("\tvm: read const[%d]\n",idx);
         assert(idx < constants.size());
         return constants.at(idx); 
     }
@@ -339,11 +339,11 @@ struct VM {
                 
                 // store the value at tos in global map
                 globals[varname] = pop();
-                printf("defined global %s = %s (const %d)\n",
+                printOp();
+                printf("\tvm: defined global " MAGENTA "%s" RESET " = %s (const %d)\n",
                         varname.c_str(),
                         globals[varname].tostr().c_str(),
                         const_idx);
-                printOp();
                 return VMStatus::OK;
             }
             default: {

@@ -1,3 +1,3 @@
-read through crafting interpreters Chapter 21 and 22
-implement global variables
+DONE! implement global variables
+implement a string literal type
 implement local variables

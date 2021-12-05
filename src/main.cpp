@@ -30,6 +30,9 @@ ErrCode run_file(char* filepath, bool dump_source) {
         dumpSourceListing(source_buf);
     }
 
+    if (!run_scan) {
+        return ErrCode::SUCCESS;
+    }
     printDiv("Scanner");
     starttime = getTime();
     Scanner scanner(source_buf);
@@ -38,6 +41,9 @@ ErrCode run_file(char* filepath, bool dump_source) {
            timeSinceMilli(starttime),
            tokens.size());
 
+    if (!run_parse) {
+        return ErrCode::SUCCESS;
+    }
     printDiv("Parser");
     starttime = getTime();
     Parser parser(tokens);
@@ -64,7 +70,7 @@ ErrCode run_file(char* filepath, bool dump_source) {
 
 void run_prompt() { printf("prompt goes here\n"); }
 
-void run_vm() { }
+void run_vm() {}
 
 int main(int argc, char** argv) {
 

@@ -1,5 +1,6 @@
 DECL_TOKEN_TYPE(ID,"")              // DONE
 DECL_TOKEN_TYPE(NUM,"")             // DONE
+DECL_TOKEN_TYPE(STRING,"")             // DONE
 
 DECL_TOKEN_TYPE(AND,"and")          // DONE
 DECL_TOKEN_TYPE(OR,"or")            // DONE
