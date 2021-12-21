@@ -140,6 +140,7 @@ struct Chunk {
     template <typename T> ConstIdx regConstVal(T constant) {
         assert(constants.size() < 255);
         constants.push_back(Value(constant));
+        std::cout << "defining constant " << constant << " at idx " << constants.size() - 1 << "\n";
         return constants.size() - 1;
     }
     Value getConst(ConstIdx idx) { 
@@ -160,13 +161,32 @@ struct Chunk {
     auto begin() { return code.begin(); }
     auto end() { return code.end(); }
 
+    void print_raw_listing(){
+        int i=0;
+        for (auto it = code.begin(); it != code.end(); it++, i++) {
+            OpCode op = *it;
+            printf(CYAN "  %2d: %#04X (%s)\n", i, op, opcode_to_str[op]);
+            if ((op == OP_CONST or op == OP_DEFINE_GLOBAL or op == OP_DEFINE_LOCAL) && std::next(it) != code.end()) {
+                printf(CYAN "  %2d: %#04X \n", ++i, *(++it));
+            }
+        }
+    }
+
     void list() {
         int i = 0;
+        printf(CYAN "== CONSTANTS TABLE ==\n");
+        for (size_t i=0; i < constants.size(); i++) {
+            printf(CYAN " %2ld: %s \n",i,constants[i].tostr().c_str());
+        }
+        printf(CYAN "== RAW LISTING ==\n");
+        print_raw_listing();
         printf(CYAN "== BYTECODE LISTING ==\n");
+        printf(CYAN "------------\n" RESET);
+        i=0;
         for (auto it = code.begin(); it != code.end(); it++, i++) {
             OpCode op = *it;
             printf(CYAN "  %d" RESET ": %s \n", i, opcode_to_str[op]);
-            if (op == OP_CONST or op == OP_DEFINE_GLOBAL) {
+            if (op == OP_CONST or op == OP_DEFINE_GLOBAL or op == OP_DEFINE_LOCAL) {
                 op = *(++it);
                 i++;
                 printf(CYAN "  %d" RESET ": \tCONST=%s\n", i, getConst(op).tostr().c_str());
@@ -204,7 +224,7 @@ struct Chunk {
             push(A.asBool() __op__ B.asBool());                                                    \
         }                                                                                          \
     }
-
+typedef std::unordered_map<std::string,Value> VarFrame;
 enum class VMStatus { OK, ERR, INF_LOOP };
 struct VM {
     // returns pair of {op code , offset in bytecode chunk }
@@ -213,6 +233,7 @@ struct VM {
         code.finalize();
         code.list();
         push(Value()); // push null val into first position on the stack
+        new_varframe();
     }
     void printStatus(const char* arg) { printf(CYAN BOLD "Exit status = %s\n\n" RESET, arg); };
     VMStatus run() {
@@ -346,6 +367,22 @@ struct VM {
                         const_idx);
                 return VMStatus::OK;
             }
+            case OP_DEFINE_LOCAL: {
+                // next OpCode is ConstIdx of varname
+                ConstIdx const_idx = readOp().first;
+                Value val = code.getConst(const_idx);
+                assert(val.isString());
+                auto varname = val.asString(); 
+                
+                // store the value at tos in global map
+                get_varframe()[varname] = pop();
+                printOp();
+                printf("\tvm: defined _local_ " MAGENTA "%s" RESET " = %s (const %d)\n",
+                        varname.c_str(),
+                        get_varframe()[varname].tostr().c_str(),
+                        const_idx);
+                return VMStatus::OK;
+            }
             default: {
                 printf(RED "%d: unimplemented op code %s (%d) \n" RESET, pos, opcode_to_str[op], op);
                 exit(0);
@@ -376,18 +413,29 @@ struct VM {
     }
     Value& tos() { return stack.back(); }
 
+    // for manipulating local var stack frames
+    VarFrame& get_varframe() { return localvar_stack.back(); }
+    VarFrame& new_varframe() { localvar_stack.push_back({}); return get_varframe(); }
+    VarFrame& pop_varframe() {
+        assert(localvar_stack.size());
+        VarFrame& tos = localvar_stack.back();
+        localvar_stack.pop_back();
+        return tos;
+    }
+
     ////////////////////////////////////////////////////////////////////
     Chunk code;
     std::vector<OpCode>::const_iterator ip;
     std::vector<Value> stack;
     std::unordered_map<std::string,Value> globals;
+    std::vector<VarFrame> localvar_stack;
 };
 
 // use to hand test code sequences
 void dumpCode() {
     Chunk code;
     // (20-10) * 4 * 4 / 40
-    code.addConstStr("sdfsdf");
+    code.addConstStr("abcd");
     code.addConstNum(1);
     code.addConstNum(4);
     code.addConstNum(40);

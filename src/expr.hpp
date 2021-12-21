@@ -202,7 +202,7 @@ struct VarExpr : Expr {
             assexpr->right->codegen(code); 
 
             // this is assuming all definitions are global atm
-            code.addOp(OP_DEFINE_GLOBAL); 
+            code.addOp(OP_DEFINE_LOCAL); 
 
             // put the var name in the constant table
             assert(assexpr->left->isNameExpr());
@@ -216,12 +216,13 @@ struct VarExpr : Expr {
             code.addConstNull();
 
             // this is assuming all definitions are global atm
-            code.addOp(OP_DEFINE_GLOBAL);
+            code.addOp(OP_DEFINE_LOCAL);
 
             // put the var name in the constant table
             auto varname = expr->asName()->name;
             ConstIdx idx = code.regConstVal<std::string>(varname);
             //... and embed idx in instr stream
+            std::cout << "adding const idx " << OpCode(idx) << "\n";
             code.addOp(OpCode(idx));
         } else {
             assert(0 && "Ill-formed VarExpr");
