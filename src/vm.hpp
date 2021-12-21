@@ -144,7 +144,7 @@ struct Chunk {
     }
     Value getConst(ConstIdx idx) { 
         DEBUG("\tvm: read const[%d]\n",idx);
-        assert(idx < constants.size());
+        assert(idx < int(constants.size()));
         return constants.at(idx); 
     }
 
@@ -239,7 +239,7 @@ struct VM {
             break;
         default:
             printStatus(RED "UNKNOWN" RESET);
-            ERR("\tUNKNOWN status is %d\n", stat);
+            ERR("\tUNKNOWN status is %d\n", int(stat));
             break;
         }
         return stat;

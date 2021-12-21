@@ -3,7 +3,7 @@ SRC_DIR=src
 OBJ_DIR=obj
 TEST_DIR=test
 TEST_INPUT_DIR=test/input/
-CC=clang++
+CC=g++
 CC_FLAG= -Wall --std=c++17
 
 # set optional flags
@@ -29,7 +29,7 @@ EXE=test
 
 #-- MAIN BUILD TARGETS ----------------------------------------------------#
 
-all: lib exe run
+all: lib exe
 
 lib: $(OBJN)
 
